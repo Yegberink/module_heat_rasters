@@ -1,5 +1,17 @@
 # Module settings that users cannot modify.
 resources:
   automatic:
-    # Links for automatically downloaded files
-    dummy_readme: "https://raw.githubusercontent.com/modelblocks-org/docs/refs/heads/main/README.md"
+    floor_area_residential: "https://gitlab.com/hotmaps/buildings/gfa_res_curr_density/-/raw/master/data/gfa_res_curr_density.tif?lfs=true"
+    floor_area_non_residential: "https://gitlab.com/hotmaps/buildings/gfa_nonres_curr_density/-/raw/master/data/gfa_nonres_curr_density.tif?lfs=true"
+    heat_density_residential: "https://gitlab.com/hotmaps/buildings/heat/heat_res_curr_density/-/raw/master/data/heat_res_curr_density.tif?lfs=true"
+    heat_density_non_residential: "https://gitlab.com/hotmaps/buildings/heat/heat_nonres_curr_density/-/raw/master/data/heat_nonres_curr_density.tif?lfs=true"
+    eurostat_floor_area: "https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1/data/cens_21dwbnr_r3?format=TSV&compressed=true"
+    nuts3: "https://gisco-services.ec.europa.eu/distribution/v2/nuts/geojson/NUTS_RG_01M_2021_3035_LEVL_3.geojson"
+source_grid:
+  crs: EPSG:3035
+  cell_size_m: 100
+  bounds_m: [944000, 938000, 6528000, 5414000]
+  width: 55840
+  height: 44760
+  dtype: float32
+  nodata: 0.0

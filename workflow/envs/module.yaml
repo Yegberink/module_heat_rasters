@@ -1,0 +1,14 @@
+name: module
+channels:
+- conda-forge
+- bioconda
+- nodefaults
+dependencies:
+- affine >=2.4
+- curl >=8.9.1
+- geopandas >=1.0
+- numpy >=2.0
+- pandas >=2.2
+- pyarrow >=17.0
+- rasterio >=1.4.0
+- shapely >=2.0

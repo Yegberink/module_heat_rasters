@@ -1,2 +1,40 @@
-# A minimal example of how to configure this module
-dummy_text: This is a user input.
+# Assumptions for converting Census dwelling counts to heated gross floor area.
+floor_area:
+  reference_year: 2021
+  useful_to_gross_ratio: 1.2
+  floor_space_m2:
+    SQM_LT30: 25
+    SQM30-39: 35
+    SQM40-49: 45
+    SQM50-59: 55
+    SQM60-79: 70
+    SQM80-99: 90
+    SQM100-119: 110
+    SQM120-149: 135
+    SQM_GE150: 180
+  rooms:
+    "1": 1
+    "2": 2
+    "3": 3
+    "4": 4
+    "5": 5
+    "6": 6
+    "7": 7
+    "8": 8
+    GE9: 10
+  floor_area_per_room_m2: 20
+
+# Annual building-heat categories and end uses included in district heating.
+heat_demand:
+  end_uses: [space_heat, hot_water]
+  categories:
+    household: residential
+    commercial: non_residential
+
+# Hectare output settings. Bounds are derived from each {shapes} case.
+raster:
+  cell_size_m: 100
+  dtype: float32
+  nodata: 0.0
+  compression: deflate
+  block_size: 512

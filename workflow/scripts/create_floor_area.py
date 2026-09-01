@@ -140,6 +140,11 @@ class Eubucco:
             )
         if tables:
             table = pa.concat_tables(tables)
+            table = table.set_column(
+                table.schema.get_field_index("floors"),
+                "floors",
+                pc.cast(table["floors"], pa.float64()),
+            )
             attributes = table.drop_columns("geometry").to_pandas()
             buildings = gpd.GeoDataFrame(
                 attributes,

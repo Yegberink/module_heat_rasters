@@ -10,9 +10,7 @@ min_version("9.19")
 # This allows users to re-wire how the module is used in their workflow with ease.
 pathvars:
     shapes="<resources>/user/{shapes}/shapes.parquet",
-    annual_heat_demand="<resources>/user/{shapes}/annual_heat_demand.parquet",
-    floor_area="<results>/{shapes}/floor_area.tif",
-    nuts3_floor_area="<results>/{shapes}/nuts3_floor_area.parquet",
+    annual_heat_demand="<results>/{shapes}/annual/heat_demand_twh.parquet",
     heat_demand_density="<results>/{shapes}/heat_demand_density_{year}.tif",
     nuts3_heat_demand="<results>/{shapes}/nuts3_heat_demand_{year}.parquet",
 
@@ -28,6 +26,21 @@ validate(config, workflow.source_path("internal/config.schema.yaml"))
 with open(workflow.source_path("internal/settings.yaml"), "r") as f:
     internal = yaml.safe_load(f)
 
+with open(workflow.source_path("../config/module_euro_building_heat.yaml"), "r") as f:
+    building_heat_config = yaml.safe_load(f)
+
+
+module module_euro_building_heat:
+    pathvars:
+        shapes="resources/user/{shapes}/shapes.parquet",
+        logs="logs/module_euro_building_heat",
+        resources="resources/module_euro_building_heat",
+        results="results",
+    snakefile:
+        "gh:modelblocks-org/module_euro_building_heat@new_workflow"
+    config:
+        building_heat_config
+
 
 # Add all your includes here.
 include: "rules/automatic.smk"
@@ -41,6 +54,7 @@ include: "rules/heat_demand.smk"
 # explicitly used as a script or input in a snakemake rule.
 workflow.source_path("scripts/_schemas.py")
 workflow.source_path("scripts/_raster.py")
+workflow.source_path("scripts/_plots.py")
 
 
 rule all:

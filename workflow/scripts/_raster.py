@@ -44,10 +44,12 @@ def create_output(
     return rasterio.open(path, "w+", **profile), window
 
 
-def raster_sum(raster: rasterio.DatasetReader, geometry: BaseGeometry) -> float:
+def raster_sum(
+    raster: rasterio.DatasetReader, geometry: BaseGeometry, band: int = 1
+) -> float:
     """Sum cell-centre values inside one geometry."""
     window = geometry_window(raster, [geometry])
-    values = raster.read(1, window=window)
+    values = raster.read(band, window=window)
     inside = geometry_mask(
         [geometry], values.shape, raster.window_transform(window), invert=True
     )
@@ -61,6 +63,7 @@ def write_scaled(
     base_window: Window,
     geometry: BaseGeometry,
     total: float,
+    source_band: int = 1,
 ) -> None:
     """Write reference values scaled to a regional total."""
     if total == 0:
@@ -72,7 +75,7 @@ def write_scaled(
         window.width,
         window.height,
     )
-    proxy = reference.read(1, window=source_window)
+    proxy = reference.read(source_band, window=source_window)
     inside = geometry_mask(
         [geometry], proxy.shape, output.window_transform(window), invert=True
     )

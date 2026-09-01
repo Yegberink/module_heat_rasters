@@ -1,17 +1,52 @@
 # Module settings that users cannot modify.
 resources:
   automatic:
-    floor_area_residential: "https://gitlab.com/hotmaps/buildings/gfa_res_curr_density/-/raw/master/data/gfa_res_curr_density.tif?lfs=true"
-    floor_area_non_residential: "https://gitlab.com/hotmaps/buildings/gfa_nonres_curr_density/-/raw/master/data/gfa_nonres_curr_density.tif?lfs=true"
-    heat_density_residential: "https://gitlab.com/hotmaps/buildings/heat/heat_res_curr_density/-/raw/master/data/heat_res_curr_density.tif?lfs=true"
-    heat_density_non_residential: "https://gitlab.com/hotmaps/buildings/heat/heat_nonres_curr_density/-/raw/master/data/heat_nonres_curr_density.tif?lfs=true"
     eurostat_floor_area: "https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1/data/cens_21dwbnr_r3?format=TSV&compressed=true"
     nuts3: "https://gisco-services.ec.europa.eu/distribution/v2/nuts/geojson/NUTS_RG_01M_2021_3035_LEVL_3.geojson"
-source_grid:
-  crs: EPSG:3035
-  cell_size_m: 100
-  bounds_m: [944000, 938000, 6528000, 5414000]
-  width: 55840
-  height: 44760
-  dtype: float32
-  nodata: 0.0
+    ghsl_population: "https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/GHSL/GHS_POP_GLOBE_R2023A/{stem}/V1-0/{stem}_V1_0.zip"
+    ghsl_stem: "GHS_POP_E{epoch}_GLOBE_R2023A_54009_{resolution}"
+    eubucco_endpoint: "https://s3.eubucco.com"
+    eubucco_nuts: "https://s3.eubucco.com/eubucco/v{version}/additional/NUTS-regions-2016.parquet"
+    eubucco_stats: "https://s3.eubucco.com/eubucco/v{version}/additional/region-stats.parquet"
+    eubucco_buildings: "eubucco/v{version}/buildings/parquet/nuts_id={nuts2}/{nuts2}.parquet"
+country_codes:
+  ALB: AL
+  AND: AD
+  AUT: AT
+  BEL: BE
+  BGR: BG
+  BIH: BA
+  CHE: CH
+  CYP: CY
+  CZE: CZ
+  DEU: DE
+  DNK: DK
+  ESP: ES
+  EST: EE
+  FIN: FI
+  FRA: FR
+  GBR: UK
+  GRC: EL
+  HRV: HR
+  HUN: HU
+  IRL: IE
+  ISL: IS
+  ITA: IT
+  LIE: LI
+  LTU: LT
+  LUX: LU
+  LVA: LV
+  MCO: MC
+  MKD: MK
+  MLT: MT
+  MNE: ME
+  NLD: NL
+  NOR: NO
+  POL: PL
+  PRT: PT
+  ROU: RO
+  SMR: SM
+  SRB: RS
+  SVK: SK
+  SVN: SI
+  SWE: SE

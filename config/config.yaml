@@ -1,6 +1,14 @@
-# Assumptions for converting Census dwelling counts to heated gross floor area.
+# Assumptions for calculating and spatially allocating gross floor area.
 floor_area:
   reference_year: 2021
+  ghsl_epoch: 2025
+  ghsl_resolution: 100
+  ghsl_chunk_size: 2048
+  eubucco:
+    version: "0.2"
+    residential_type: residential
+    commercial_subtypes: [commercial, public]
+    assignment: centroid
   useful_to_gross_ratio: 1.2
   floor_space_m2:
     SQM_LT30: 25
@@ -23,6 +31,32 @@ floor_area:
     "8": 8
     GE9: 10
   floor_area_per_room_m2: 20
+
+# Use the mean floor area per person of these countries when source data is
+# missing. Multiple reference countries are averaged with equal weight.
+data_proxies:
+  residential_floor_area:
+    ALB: [BGR, HRV, HUN, ROU, GRC]
+    AND: [ESP]
+    BIH: [BGR, HRV, HUN, ROU, GRC]
+    GBR: [IRL]
+    MKD: [BGR, HRV, HUN, ROU, GRC]
+    MCO: [FRA]
+    MNE: [BGR, HRV, HUN, ROU, GRC]
+    SMR: [ITA]
+    SRB: [BGR, HRV, HUN, ROU, GRC]
+  commercial_floor_area:
+    ALB: [BGR, HRV, HUN, ROU, GRC]
+    AND: [ESP]
+    BIH: [BGR, HRV, HUN, ROU, GRC]
+    ISL: [SWE, DNK]
+    LIE: [CHE]
+    MKD: [BGR, HRV, HUN, ROU, GRC]
+    MCO: [FRA]
+    MNE: [BGR, HRV, HUN, ROU, GRC]
+    NOR: [SWE, DNK]
+    SMR: [ITA]
+    SRB: [BGR, HRV, HUN, ROU, GRC]
 
 # Annual building-heat categories and end uses included in district heating.
 heat_demand:

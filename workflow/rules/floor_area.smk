@@ -1,43 +1,47 @@
-"""Regionalise heated gross floor area."""
+"""Create hectare-level residential and commercial floor area."""
 
 
-rule create_nuts3_floor_area:
+rule extract_ghsl_population:
     input:
-        shapes="<shapes>",
-        nuts3=rules.prepare_nuts3.output.regions,
-        census=rules.download_eurostat_floor_area.output.table,
-        residential_proxy=rules.download_residential_floor_area.output.raster,
-        non_residential_proxy=rules.download_non_residential_floor_area.output.raster,
+        rules.download_ghsl_population.output.archive,
     output:
-        table="<nuts3_floor_area>",
+        raster=f"<resources>/automatic/ghsl/pop_{config['floor_area']['ghsl_epoch']}_100.tif",
     log:
-        "<logs>/{shapes}/create_nuts3_floor_area.log",
-    conda:
-        "../envs/module.yaml"
+        "<logs>/extract_ghsl_population.log",
     params:
-        floor_area=config["floor_area"],
-        source_grid=internal["source_grid"],
-    script:
-        "../scripts/create_nuts3_floor_area.py"
+        internal_paths=internal["resources"]["automatic"]["ghsl_stem"].format(
+            epoch=config["floor_area"]["ghsl_epoch"],
+            resolution=config["floor_area"]["ghsl_resolution"],
+        )
+        + "_V1_0.tif",
+    wrapper:
+        "v9.12.0/utils/libarchive/extract"
 
 
 rule create_floor_area:
     input:
         shapes="<shapes>",
         nuts3=rules.prepare_nuts3.output.regions,
-        totals=rules.create_nuts3_floor_area.output.table,
-        residential=rules.download_residential_floor_area.output.raster,
-        non_residential=rules.download_non_residential_floor_area.output.raster,
+        nuts3_source=rules.download_nuts3.output.geojson,
+        census=rules.download_eurostat_floor_area.output.table,
+        population=rules.extract_ghsl_population.output.raster,
+        eubucco_nuts=rules.download_eubucco_nuts.output.table,
+        eubucco_stats=rules.download_eubucco_stats.output.table,
     output:
-        raster="<floor_area>",
+        raster="<resources>/automatic/{shapes}/floor_area.tif",
+        residential_plot="<resources>/automatic/{shapes}/floor_area_residential.png",
+        commercial_plot="<resources>/automatic/{shapes}/floor_area_commercial.png",
     log:
         "<logs>/{shapes}/create_floor_area.log",
     conda:
         "../envs/module.yaml"
     params:
+        floor_area=config["floor_area"],
+        proxies=config["data_proxies"],
         raster=config["raster"],
-        source_grid=internal["source_grid"],
+        eubucco=internal["resources"]["automatic"],
+        country_codes=internal["country_codes"],
     message:
-        "Regionalise NUTS-3 heated gross floor area to hectares."
+        "Create Census- and EUBUCCO-based hectare floor area."
     script:
         "../scripts/create_floor_area.py"

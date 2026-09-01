@@ -6,8 +6,7 @@ rule create_heat_demand_density:
         shapes="<shapes>",
         nuts3=rules.prepare_nuts3.output.regions,
         annual_demand="<annual_heat_demand>",
-        residential_proxy=rules.download_residential_heat_density.output.raster,
-        non_residential_proxy=rules.download_non_residential_heat_density.output.raster,
+        floor_area=rules.create_floor_area.output.raster,
     output:
         raster="<heat_demand_density>",
         nuts3="<nuts3_heat_demand>",
@@ -18,6 +17,6 @@ rule create_heat_demand_density:
     params:
         heat_demand=config["heat_demand"],
         raster=config["raster"],
-        source_grid=internal["source_grid"],
+        floor_area_reference_year=config["floor_area"]["reference_year"],
     script:
         "../scripts/create_heat_demand.py"

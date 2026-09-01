@@ -12,7 +12,3 @@ pathvars:
     results:
       default: "<results>"
       description: "location of module result (output) files."
-  results:
-    floor_area:
-      default: "<results>/floor_area.tif"
-      description: Three-band residential, non-residential, and total heated gross floor area in m2/ha.

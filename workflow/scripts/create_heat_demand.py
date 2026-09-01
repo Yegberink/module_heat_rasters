@@ -16,13 +16,13 @@ from _raster import (
     write_scaled,
 )
 from _schemas import (
+    FLOOR_AREA_BANDS,
     RASTER_BANDS,
     SECTORS,
     validate_annual_heat_demand,
     validate_density_raster,
     validate_nuts3,
     validate_nuts3_heat_demand,
-    validate_reference_rasters,
     validate_scaling_support,
     validate_shapes,
 )
@@ -49,20 +49,20 @@ def shape_totals(
 
 sys.stderr = open(snakemake.log[0], "w")
 year = int(snakemake.wildcards.year)
-paths = [snakemake.input.residential_proxy, snakemake.input.non_residential_proxy]
-validate_reference_rasters(paths, snakemake.params.source_grid)
+validate_density_raster(
+    snakemake.input.floor_area,
+    snakemake.params.raster,
+    ("m2/ha",) * 3,
+    FLOOR_AREA_BANDS,
+)
 shapes = validate_shapes(snakemake.input.shapes)
 nuts3 = validate_nuts3(snakemake.input.nuts3)
 demand = validate_annual_heat_demand(snakemake.input.annual_demand, shapes.shape_id)
 totals = shape_totals(demand, year, snakemake.params.heat_demand, shapes.shape_id)
 
-with (
-    rasterio.open(snakemake.input.residential_proxy) as residential,
-    rasterio.open(snakemake.input.non_residential_proxy) as non_residential,
-):
-    proxies = (residential, non_residential)
-    shapes = shapes.to_crs(residential.crs)
-    nuts3 = nuts3.to_crs(residential.crs)
+with rasterio.open(snakemake.input.floor_area) as floor_area:
+    shapes = shapes.to_crs(floor_area.crs)
+    nuts3 = nuts3.to_crs(floor_area.crs)
     intersections = gpd.overlay(
         shapes[["shape_id", "geometry"]],
         nuts3[["nuts3_id", "geometry"]],
@@ -70,9 +70,9 @@ with (
         keep_geom_type=False,
     )
     intersections = intersections.loc[intersections.geometry.area.gt(0)].copy()
-    for sector, proxy in zip(SECTORS, proxies, strict=True):
+    for band, sector in enumerate(SECTORS, 1):
         intersections[sector] = intersections.geometry.map(
-            lambda geometry: raster_sum(proxy, geometry)
+            lambda geometry: raster_sum(floor_area, geometry, band)
         )
         support = intersections.groupby("shape_id")[sector].sum().reindex(totals.index)
         validate_scaling_support(totals[sector].to_numpy(), support.to_numpy())
@@ -94,29 +94,32 @@ with (
     Path(snakemake.output.nuts3).parent.mkdir(parents=True, exist_ok=True)
     table.to_parquet(snakemake.output.nuts3, index=False)
 
-    scope = scope_geometry(shapes, residential.crs)
+    scope = scope_geometry(shapes, floor_area.crs)
     geometries = nuts3.geometry.intersection(scope)
-    for sector, proxy in zip(SECTORS, proxies, strict=True):
-        support = geometries.map(lambda geometry: raster_sum(proxy, geometry))
+    for band, sector in enumerate(SECTORS, 1):
+        support = geometries.map(
+            lambda geometry: raster_sum(floor_area, geometry, band)
+        )
         validate_scaling_support(
             nuts_totals[f"{sector}_mwh"].to_numpy(), support.to_numpy()
         )
     output, base_window = create_output(
         snakemake.output.raster,
-        residential,
+        floor_area,
         shapes.total_bounds,
         snakemake.params.raster,
     )
     with output:
-        for band, (sector, proxy) in enumerate(zip(SECTORS, proxies, strict=True), 1):
+        for band, sector in enumerate(SECTORS, 1):
             for nuts3_id, geometry in zip(nuts3.nuts3_id, geometries, strict=True):
                 write_scaled(
                     output,
                     band,
-                    proxy,
+                    floor_area,
                     base_window,
                     geometry,
                     nuts_totals.loc[nuts3_id, f"{sector}_mwh"],
+                    band,
                 )
         finish_raster(
             output,
@@ -124,9 +127,9 @@ with (
             ("MWh/ha",) * 3,
             {
                 "demand_year": year,
-                "proxy_reference_year": 2015,
+                "floor_area_reference_year": snakemake.params.floor_area_reference_year,
                 "energy": "useful",
-                "regionalisation": "Muller_et_al_2019_composite_indicators",
+                "regionalisation": "floor_area_density",
             },
         )
 

@@ -3,10 +3,10 @@
 
 rule create_heat_demand_density:
     input:
-        shapes="<shapes>",
+        shapes=rules.prepare_shapes.output.shapes,
         nuts3=rules.prepare_nuts3.output.regions,
         annual_demand="<annual_heat_demand>",
-        floor_area=rules.create_floor_area.output.raster,
+        floor_area=rules.merge_floor_area.output.raster,
     output:
         raster="<heat_demand_density>",
         nuts3="<nuts3_heat_demand>",

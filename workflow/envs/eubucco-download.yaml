@@ -1,18 +1,15 @@
-name: module
+name: eubucco-download
 channels:
 - conda-forge
 - bioconda
 - nodefaults
 dependencies:
-- affine >=2.4
+- curl >=8.9.1
 - duckdb >=1.4
 - geopandas >=1.0
-- gregor >=0.1.0
-- matplotlib >=3.9
 - numpy >=2.0
 - pandas >=2.2
 - pyarrow >=17.0
 - pyproj >=3.7
 - rasterio >=1.4.0
-- rioxarray >=0.17
 - shapely >=2.0

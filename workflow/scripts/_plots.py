@@ -1,4 +1,9 @@
-"""Plot hectare floor-area rasters."""
+"""Create diagnostic maps of hectare floor-area density.
+
+The 99th percentile limits the influence of isolated extreme cells, while a
+power-law normalisation keeps both low- and high-density settlements visible.
+These plots are diagnostics; the underlying GeoTIFF retains untransformed data.
+"""
 
 from pathlib import Path
 

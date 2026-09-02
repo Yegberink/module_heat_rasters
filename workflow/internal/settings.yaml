@@ -9,6 +9,9 @@ resources:
     eubucco_nuts: "https://s3.eubucco.com/eubucco/v{version}/additional/NUTS-regions-2016.parquet"
     eubucco_stats: "https://s3.eubucco.com/eubucco/v{version}/additional/region-stats.parquet"
     eubucco_buildings: "eubucco/v{version}/buildings/parquet/nuts_id={nuts2}/{nuts2}.parquet"
+    eubucco_buildings_url: "https://s3.eubucco.com/eubucco/v{version}/buildings/parquet/nuts_id={nuts2}/{nuts2}.parquet"
+    eubucco_lightweight: "https://s3.eubucco.com/eubucco/v{version}/additional/eubucco_lat_lon.parquet"
+    eubucco_lightweight_path: "eubucco/v{version}/additional/eubucco_lat_lon.parquet"
 country_codes:
   ALB: AL
   AND: AD

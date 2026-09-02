@@ -6,6 +6,8 @@ floor_area:
   ghsl_chunk_size: 2048
   eubucco:
     version: "0.2"
+    source_strategy: auto
+    regional_max_fraction: 0.8
     residential_type: residential
     commercial_subtypes: [commercial, public]
     assignment: centroid

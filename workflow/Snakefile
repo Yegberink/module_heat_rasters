@@ -43,6 +43,7 @@ module module_euro_building_heat:
 
 
 # Add all your includes here.
+include: "rules/_utils.smk"
 include: "rules/automatic.smk"
 include: "rules/prepare.smk"
 include: "rules/floor_area.smk"
@@ -55,6 +56,8 @@ include: "rules/heat_demand.smk"
 workflow.source_path("scripts/_schemas.py")
 workflow.source_path("scripts/_raster.py")
 workflow.source_path("scripts/_plots.py")
+workflow.source_path("scripts/_eubucco.py")
+workflow.source_path("scripts/_floor_area.py")
 
 
 rule all:

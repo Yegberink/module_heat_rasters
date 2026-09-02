@@ -229,3 +229,5 @@ https://conda.anaconda.org/conda-forge/noarch/distributed-2026.8.0-pyhc364b38_0.
 https://conda.anaconda.org/conda-forge/noarch/bokeh-3.10.0-pyhd8ed1ab_0.conda#67d0ed593951a4933024453b76ef1355
 https://conda.anaconda.org/conda-forge/noarch/dask-2026.8.0-pyhc364b38_0.conda#e79afa78ebd31bb1e76de5fe117edb29
 https://conda.anaconda.org/conda-forge/noarch/gregor-0.1.0-pyhcf101f3_0.conda#36a2d7837350f7e8da83bcaad552d0b5
+https://conda.anaconda.org/conda-forge/win-64/python-duckdb-1.5.5-py314h13fbf68_0.conda#110ef46da6d5ecf5d0cd2cd56a636aa0
+https://conda.anaconda.org/conda-forge/noarch/duckdb-1.5.5-hff2d567_0.conda#3ddb4bae3847f91eb949c10978e2bbdb

@@ -1,4 +1,9 @@
-"""Raster operations shared by hectare regionalisation scripts."""
+"""Conservative raster operations shared by hectare regionalisation scripts.
+
+The functions preserve alignment with an existing hectare raster, allocate a
+known regional total in proportion to a proxy band, and derive the total band
+from its two sector bands. Windowed reads and writes keep memory use bounded.
+"""
 
 import math
 from pathlib import Path
@@ -12,7 +17,7 @@ from shapely.geometry.base import BaseGeometry
 
 
 def output_window(reference: rasterio.DatasetReader, bounds) -> Window:
-    """Return an outward-rounded source window covering bounds."""
+    """Return the smallest whole-cell reference window covering ``bounds``."""
     raw = rasterio.windows.from_bounds(*bounds, transform=reference.transform)
     window = Window(
         math.floor(raw.col_off),
@@ -26,7 +31,11 @@ def output_window(reference: rasterio.DatasetReader, bounds) -> Window:
 def create_output(
     path: str | Path, reference: rasterio.DatasetReader, bounds, schema: dict[str, Any]
 ) -> tuple[rasterio.DatasetWriter, Window]:
-    """Create a three-band raster aligned to a reference grid."""
+    """Create a three-band raster aligned exactly to a reference grid.
+
+    The returned base window links output-local row and column offsets back to
+    the reference raster during sector allocation.
+    """
     window = output_window(reference, bounds)
     profile = reference.profile | {
         "width": int(window.width),
@@ -47,7 +56,11 @@ def create_output(
 def raster_sum(
     raster: rasterio.DatasetReader, geometry: BaseGeometry, band: int = 1
 ) -> float:
-    """Sum cell-centre values inside one geometry."""
+    """Sum values whose cell centres fall inside one geometry.
+
+    This uses Rasterio's default geometry-mask semantics consistently for both
+    calculation of proxy support and subsequent allocation.
+    """
     window = geometry_window(raster, [geometry])
     values = raster.read(band, window=window)
     inside = geometry_mask(
@@ -65,7 +78,12 @@ def write_scaled(
     total: float,
     source_band: int = 1,
 ) -> None:
-    """Write reference values scaled to a regional total."""
+    r"""Allocate ``total`` over a geometry in proportion to a reference band.
+
+    If :math:`f_i` is floor area in hectare :math:`i`, the output is
+    :math:`f_i T / \sum_i f_i`. Positive totals are validated against positive
+    proxy support by the calling script before this function is reached.
+    """
     if total == 0:
         return
     window = geometry_window(output, [geometry])
@@ -95,7 +113,7 @@ def finish_raster(
     units: tuple[str, str, str],
     tags: dict[str, str | int],
 ) -> None:
-    """Create the total band and attach metadata."""
+    """Create the total band blockwise and attach units and provenance tags."""
     for _, window in output.block_windows(1):
         total = output.read(1, window=window) + output.read(2, window=window)
         output.write(total, 3, window=window)

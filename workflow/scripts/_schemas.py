@@ -1,29 +1,49 @@
-"""Schemas for regionalisation inputs and outputs."""
+"""Executable schemas for all regionalisation inputs and outputs.
 
+Each reader checks structural, spatial, and numeric invariants before returning
+data to a calculation. Output validators additionally enforce band ordering,
+units, non-negativity, and conservation identities. Assertions are intentional:
+invalid throughput must stop the workflow rather than be repaired silently.
+
+Source contracts represented here include EUBUCCO v0.2, Eurostat GISCO NUTS,
+Eurostat Census 2021, GHS-POP R2023A, and ``module_euro_building_heat``.
+"""
+
+import json
 from pathlib import Path
 from typing import Any
 
+import duckdb
 import geopandas as gpd
 import numpy as np
 import pandas as pd
+import pyarrow.parquet as pq
 import rasterio
+from _eubucco import EUBUCCO_COLUMNS, EUBUCCO_SCHEMA
 
 SECTORS = ("residential", "non_residential")
 RASTER_BANDS = (*SECTORS, "total")
 FLOOR_AREA_BANDS = ("residential", "commercial", "total")
 
 
-def validate_shapes(path: str | Path) -> gpd.GeoDataFrame:
-    """Validate user polygons and return the land shapes."""
+def validate_shape_source(path: str | Path) -> gpd.GeoDataFrame:
+    """Validate user-provided land and maritime polygons."""
     shapes = gpd.read_parquet(path)
     assert {"shape_id", "country_id", "shape_class", "geometry"} <= set(shapes)
-    shapes = shapes.loc[shapes.shape_class.eq("land")].copy()
     shapes["shape_id"] = shapes.shape_id.astype(str).str.replace(".", "-", regex=False)
     assert shapes.crs
     assert shapes.shape_id.is_unique
     assert shapes.country_id.str.fullmatch(r"[A-Z]{3}").all()
+    assert shapes.shape_class.isin(["land", "maritime"]).all()
     assert shapes.geometry.is_valid.all()
     assert (~shapes.geometry.is_empty).all()
+    return shapes
+
+
+def validate_shapes(path: str | Path) -> gpd.GeoDataFrame:
+    """Validate prepared land polygons."""
+    shapes = validate_shape_source(path)
+    assert shapes.shape_class.eq("land").all()
     projected = shapes.to_crs("EPSG:3035")
     assert np.isclose(
         projected.geometry.area.sum(), projected.geometry.union_all().area
@@ -93,15 +113,99 @@ def validate_eubucco_stats(path: str | Path) -> gpd.GeoDataFrame:
     return stats
 
 
-def validate_eubucco_buildings(buildings: gpd.GeoDataFrame) -> None:
-    """Validate a streamed EUBUCCO building subset."""
-    assert list(buildings.columns) == ["id", "type", "subtype", "floors", "geometry"]
-    assert buildings.crs.to_epsg() == 3035
-    assert buildings.id.is_unique
-    assert np.isfinite(buildings.floors).all()
-    assert buildings.floors.gt(0).all()
-    assert buildings.geometry.is_valid.all()
-    assert (~buildings.geometry.is_empty).all()
+def validate_eubucco_plan(path: str | Path) -> dict:
+    """Validate an adaptive EUBUCCO acquisition manifest."""
+    with open(path) as stream:
+        plan = json.load(stream)
+    assert list(plan) == [
+        "schema_version",
+        "eubucco_version",
+        "requested_strategy",
+        "selected_strategy",
+        "regional_max_fraction",
+        "regional_estimated_bytes",
+        "lightweight_bytes",
+        "regions",
+    ]
+    assert plan["schema_version"] == 1
+    assert plan["eubucco_version"] == "0.2"
+    assert plan["requested_strategy"] in {"auto", "regional", "lightweight"}
+    assert plan["selected_strategy"] in {"regional", "lightweight"}
+    assert 0 < plan["regional_max_fraction"] <= 1
+    assert plan["regional_estimated_bytes"] >= 0
+    assert plan["lightweight_bytes"] > 0
+    assert plan["regions"]
+    for nuts3, mapping in plan["regions"].items():
+        assert len(nuts3) == 5
+        assert list(mapping) == ["region_ids", "nuts2_ids"]
+        assert mapping["region_ids"] == sorted(set(mapping["region_ids"]))
+        assert mapping["nuts2_ids"] == sorted(set(mapping["nuts2_ids"]))
+        assert mapping["nuts2_ids"] == sorted(
+            {region[:4] for region in mapping["region_ids"]}
+        )
+    return plan
+
+
+def validate_eubucco_partition(path: str | Path) -> None:
+    """Validate one canonical local EUBUCCO NUTS-2 partition."""
+    schema = pq.read_schema(path)
+    assert schema.names == EUBUCCO_COLUMNS
+    assert schema == EUBUCCO_SCHEMA
+    valid = duckdb.connect().execute(
+        """
+        SELECT count(*) = count(DISTINCT id),
+               coalesce(bool_and(regexp_full_match(region_id, '[A-Z0-9]{5}')), true),
+               coalesce(bool_and(isfinite(floors) AND floors > 0), true),
+               coalesce(bool_and(isfinite(footprint_area_m2) AND footprint_area_m2 > 0), true),
+               coalesce(bool_and(isfinite(x_3035) AND isfinite(y_3035)), true)
+        FROM read_parquet(?)
+        """,
+        [str(path)],
+    ).fetchone()
+    assert all(valid)
+
+
+def validate_eubucco_lightweight(path: str | Path) -> None:
+    """Validate the required columns of the Europe-wide lightweight parquet."""
+    fields = {
+        "id",
+        "region_id",
+        "type",
+        "subtype",
+        "floors",
+        "footprint_area",
+        "lat",
+        "lon",
+    }
+    assert fields <= set(pq.read_schema(path).names)
+
+
+def validate_eubucco_footprints(path: str | Path) -> None:
+    """Validate the required columns of a regional EUBUCCO parquet."""
+    fields = {"id", "region_id", "type", "subtype", "floors", "geometry"}
+    assert fields <= set(pq.read_schema(path).names)
+
+
+def validate_floor_area_totals(path: str | Path, nuts3_ids=None) -> pd.DataFrame:
+    """Validate prepared current-NUTS-3 floor-area totals."""
+    totals = pd.read_parquet(path)
+    assert list(totals.columns) == [
+        "nuts3_id",
+        "country_id",
+        "population",
+        "residential_total_m2",
+        "commercial_fallback_m2",
+    ]
+    assert totals.nuts3_id.is_unique
+    if nuts3_ids is not None:
+        assert set(totals.nuts3_id) == set(nuts3_ids)
+    assert totals.country_id.str.fullmatch(r"[A-Z]{3}").all()
+    assert np.isfinite(totals[["population", "residential_total_m2"]]).all().all()
+    assert totals[["population", "residential_total_m2"]].ge(0).all().all()
+    fallback = totals.commercial_fallback_m2.dropna()
+    assert np.isfinite(fallback).all()
+    assert fallback.ge(0).all()
+    return totals
 
 
 def validate_population_raster(path: str | Path, resolution: int) -> None:

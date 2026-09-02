@@ -10,7 +10,7 @@ rule download_nuts3:
     log:
         "<logs>/download_nuts3.log",
     conda:
-        "../envs/download.yaml"
+        "../envs/eubucco-download.yaml"
     params:
         url=internal["resources"]["automatic"]["nuts3"],
     shell:
@@ -46,33 +46,3 @@ rule download_ghsl_population:
         ),
     shell:
         'curl -fL --retry 3 --create-dirs -o {output.archive} "{params.url}" 2> {log}'
-
-
-rule download_eubucco_nuts:
-    output:
-        table="<resources>/automatic/eubucco/NUTS-regions-2016.parquet",
-    log:
-        "<logs>/download_eubucco_nuts.log",
-    conda:
-        "../envs/download.yaml"
-    params:
-        url=internal["resources"]["automatic"]["eubucco_nuts"].format(
-            version=config["floor_area"]["eubucco"]["version"]
-        ),
-    shell:
-        'curl -fL --retry 3 --create-dirs -o {output.table} "{params.url}" 2> {log}'
-
-
-rule download_eubucco_stats:
-    output:
-        table="<resources>/automatic/eubucco/region-stats.parquet",
-    log:
-        "<logs>/download_eubucco_stats.log",
-    conda:
-        "../envs/download.yaml"
-    params:
-        url=internal["resources"]["automatic"]["eubucco_stats"].format(
-            version=config["floor_area"]["eubucco"]["version"]
-        ),
-    shell:
-        'curl -fL --retry 3 --create-dirs -o {output.table} "{params.url}" 2> {log}'

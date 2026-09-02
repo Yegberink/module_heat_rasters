@@ -1,4 +1,21 @@
-"""Regionalise annual useful heat demand through NUTS 3 to hectares."""
+"""Regionalise annual useful heat demand from arbitrary shapes to hectares.
+
+The upstream ``module_euro_building_heat`` supplies annual useful demand in TWh
+by shape, end use, and category. Configured end uses and categories are mapped
+to residential and non-residential sectors and converted to MWh. Where a shape
+crosses NUTS-3 boundaries, its demand is first split by sector-specific floor
+area. The resulting NUTS-3 totals are then allocated to hectares using the same
+floor-area band. Both stages are mass preserving and require positive proxy
+support for every positive demand total.
+
+Outputs are a NUTS-3 control-total table and a three-band EPSG:3035 raster in
+MWh/ha. This two-stage representation supports later matching with spatial heat
+sources while retaining an auditable administrative total.
+
+Sources:
+    Upstream demand model: https://github.com/modelblocks-org/module_euro_building_heat
+    Hectare heat-density method: https://doi.org/10.3390/en12244789
+"""
 
 import sys
 from pathlib import Path
@@ -34,7 +51,12 @@ if TYPE_CHECKING:
 def shape_totals(
     demand: pd.DataFrame, year: int, settings: dict[str, Any], shape_ids: pd.Index
 ) -> pd.DataFrame:
-    """Select district-heating end uses and convert TWh to MWh by sector."""
+    """Select district-heating end uses and aggregate TWh to MWh by sector.
+
+    Category-to-sector assignments and included end uses are configuration, not
+    implicit model choices. Multiple source categories may contribute to one
+    sector and are summed for each input shape.
+    """
     selected = demand.loc[
         (demand.index.get_level_values("year") == year)
         & demand.index.get_level_values("end_use").isin(settings["end_uses"])
@@ -49,6 +71,8 @@ def shape_totals(
 
 sys.stderr = open(snakemake.log[0], "w")
 year = int(snakemake.wildcards.year)
+
+# Load schema-validated inputs and reduce annual demand to the configured sectors.
 validate_density_raster(
     snakemake.input.floor_area,
     snakemake.params.raster,
@@ -63,6 +87,9 @@ totals = shape_totals(demand, year, snakemake.params.heat_demand, shapes.shape_i
 with rasterio.open(snakemake.input.floor_area) as floor_area:
     shapes = shapes.to_crs(floor_area.crs)
     nuts3 = nuts3.to_crs(floor_area.crs)
+
+    # Split each input shape by NUTS-3 so shape-level demand can cross the
+    # administrative boundaries used by the downstream supply model.
     intersections = gpd.overlay(
         shapes[["shape_id", "geometry"]],
         nuts3[["nuts3_id", "geometry"]],
@@ -71,6 +98,7 @@ with rasterio.open(snakemake.input.floor_area) as floor_area:
     )
     intersections = intersections.loc[intersections.geometry.area.gt(0)].copy()
     for band, sector in enumerate(SECTORS, 1):
+        # Floor area is the allocation weight within each original shape.
         intersections[sector] = intersections.geometry.map(
             lambda geometry: raster_sum(floor_area, geometry, band)
         )
@@ -82,6 +110,7 @@ with rasterio.open(snakemake.input.floor_area) as floor_area:
             * intersections.shape_id.map(totals[sector])
         )
 
+    # Reaggregate the allocated pieces to complete NUTS-3 demand totals.
     nuts_totals = (
         intersections.groupby("nuts3_id")[[f"{sector}_mwh" for sector in SECTORS]]
         .sum()
@@ -94,6 +123,8 @@ with rasterio.open(snakemake.input.floor_area) as floor_area:
     Path(snakemake.output.nuts3).parent.mkdir(parents=True, exist_ok=True)
     table.to_parquet(snakemake.output.nuts3, index=False)
 
+    # Allocate each NUTS-3 total to hectares using the corresponding sector's
+    # floor-area density while clipping the result to the requested shape scope.
     scope = scope_geometry(shapes, floor_area.crs)
     geometries = nuts3.geometry.intersection(scope)
     for band, sector in enumerate(SECTORS, 1):

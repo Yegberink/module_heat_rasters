@@ -18,9 +18,14 @@ properties:
       eubucco:
         type: object
         additionalProperties: false
-        required: [version, residential_type, commercial_subtypes, assignment]
+        required: [version, source_strategy, regional_max_fraction, residential_type, commercial_subtypes, assignment]
         properties:
           version: {type: string, const: "0.2"}
+          source_strategy: {type: string, enum: [auto, regional, lightweight]}
+          regional_max_fraction:
+            type: number
+            exclusiveMinimum: 0
+            maximum: 1
           residential_type: {type: string, const: residential}
           commercial_subtypes:
             type: array

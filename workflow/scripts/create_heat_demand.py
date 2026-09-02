@@ -41,7 +41,6 @@ from _schemas import (
     validate_nuts3,
     validate_nuts3_heat_demand,
     validate_scaling_support,
-    validate_shapes,
 )
 
 if TYPE_CHECKING:
@@ -79,7 +78,7 @@ validate_density_raster(
     ("m2/ha",) * 3,
     FLOOR_AREA_BANDS,
 )
-shapes = validate_shapes(snakemake.input.shapes)
+shapes = gpd.read_parquet(snakemake.input.shapes)
 nuts3 = validate_nuts3(snakemake.input.nuts3)
 demand = validate_annual_heat_demand(snakemake.input.annual_demand, shapes.shape_id)
 totals = shape_totals(demand, year, snakemake.params.heat_demand, shapes.shape_id)

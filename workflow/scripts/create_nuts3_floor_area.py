@@ -41,7 +41,6 @@ from _schemas import (
     validate_floor_area_totals,
     validate_nuts3,
     validate_population_raster,
-    validate_shapes,
 )
 from rasterio.enums import Resampling
 from rasterio.vrt import WarpedVRT
@@ -57,11 +56,7 @@ nuts3 = (
     validate_nuts3(snakemake.input.nuts3).to_crs("EPSG:3035").set_index("nuts3_id")
 )
 region = nuts3.loc[snakemake.wildcards.nuts3]
-scope = (
-    validate_shapes(snakemake.input.shapes)
-    .to_crs("EPSG:3035")
-    .geometry.union_all()
-)
+scope = gpd.read_parquet(snakemake.input.shapes).to_crs("EPSG:3035").geometry.union_all()
 clipped = region.geometry.intersection(scope)
 totals = (
     validate_floor_area_totals(snakemake.input.totals)

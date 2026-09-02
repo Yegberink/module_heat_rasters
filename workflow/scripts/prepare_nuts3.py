@@ -16,13 +16,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import geopandas as gpd
-from _schemas import validate_nuts3, validate_nuts3_source, validate_shapes
+from _schemas import validate_nuts3, validate_nuts3_source
 
 if TYPE_CHECKING:
     snakemake: Any
 
 sys.stderr = open(snakemake.log[0], "w")
-shapes = validate_shapes(snakemake.input.shapes)
+shapes = gpd.read_parquet(snakemake.input.shapes)
 nuts3 = validate_nuts3_source(snakemake.input.nuts3)
 shapes = shapes.to_crs(nuts3.crs)
 scope = shapes.geometry.union_all()

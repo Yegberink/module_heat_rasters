@@ -10,24 +10,20 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import geopandas as gpd
 import rasterio
 from _eubucco import read_plan
 from _floor_area import add_partial, output_profile
 from _plots import plot_floor_area
 from _raster import finish_raster
-from _schemas import (
-    FLOOR_AREA_BANDS,
-    validate_density_raster,
-    validate_plot,
-    validate_shapes,
-)
+from _schemas import FLOOR_AREA_BANDS, validate_density_raster, validate_plot
 
 if TYPE_CHECKING:
     snakemake: Any
 
 sys.stderr = open(snakemake.log[0], "w")
 settings = snakemake.params.floor_area
-shapes = validate_shapes(snakemake.input.shapes).to_crs("EPSG:3035")
+shapes = gpd.read_parquet(snakemake.input.shapes).to_crs("EPSG:3035")
 plan = read_plan(snakemake.input.plan)
 profile = output_profile(shapes.total_bounds, snakemake.params.raster)
 Path(snakemake.output.raster).parent.mkdir(parents=True, exist_ok=True)

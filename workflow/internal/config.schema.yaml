@@ -69,13 +69,14 @@ properties:
   raster:
     type: object
     additionalProperties: false
-    required: [cell_size_m, dtype, nodata, compression, block_size]
+    required: [cell_size_m, dtype, nodata, compression, block_size, plot_max_size]
     properties:
       cell_size_m: {type: number, const: 100}
       dtype: {type: string, enum: [float32, float64]}
       nodata: {type: number}
       compression: {type: string, enum: [deflate, lzw, zstd]}
       block_size: {type: integer, minimum: 16, multipleOf: 16}
+      plot_max_size: {type: integer, minimum: 1}
 $defs:
   country_proxies:
     type: object

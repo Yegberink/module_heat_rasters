@@ -5,6 +5,7 @@ channels:
 - nodefaults
 dependencies:
 - affine >=2.4
+- dask >=2024.0
 - duckdb >=1.4
 - geopandas >=1.0
 - gregor >=0.1.0

@@ -9,20 +9,33 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
-import rasterio
+import rioxarray
 from matplotlib.colors import PowerNorm
 
 
-def plot_floor_area(raster_path: str, band: int, title: str, output_path: str) -> None:
-    """Plot one floor-area band with a zero-safe nonlinear colour scale."""
-    with rasterio.open(raster_path) as raster:
-        values = raster.read(band, masked=True)
-        extent = (
-            raster.bounds.left,
-            raster.bounds.right,
-            raster.bounds.bottom,
-            raster.bounds.top,
+def plot_floor_area(
+    raster_path: str,
+    band: int,
+    title: str,
+    output_path: str,
+    chunk_size: int,
+    max_size: int,
+) -> None:
+    """Plot a Dask-coarsened floor-area band without loading the full raster."""
+    with rioxarray.open_rasterio(
+        raster_path, chunks={"x": chunk_size, "y": chunk_size}
+    ) as raster:
+        values = raster.sel(band=band)
+        factor = max(1, int(np.ceil(max(values.shape) / max_size)))
+        values = (
+            values.coarsen(x=factor, y=factor, boundary="pad")
+            .max()
+            .compute()
+            .to_numpy()
         )
+        values = np.ma.masked_equal(values, raster.rio.nodata)
+        bounds = raster.rio.bounds()
+        extent = bounds[0], bounds[2], bounds[1], bounds[3]
     positive = values.compressed()
     vmax = (
         max(1, float(np.quantile(positive[positive > 0], 0.99)))

@@ -59,12 +59,16 @@ plot_floor_area(
     1,
     "Residential floor area",
     snakemake.output.residential_plot,
+    snakemake.params.raster["block_size"],
+    snakemake.params.raster["plot_max_size"],
 )
 plot_floor_area(
     snakemake.output.raster,
     2,
     "Commercial and public floor area",
     snakemake.output.commercial_plot,
+    snakemake.params.raster["block_size"],
+    snakemake.params.raster["plot_max_size"],
 )
 validate_plot(snakemake.output.residential_plot)
 validate_plot(snakemake.output.commercial_plot)

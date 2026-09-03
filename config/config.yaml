@@ -74,3 +74,4 @@ raster:
   nodata: 0.0
   compression: deflate
   block_size: 512
+  plot_max_size: 2000

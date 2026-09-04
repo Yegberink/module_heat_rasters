@@ -1,7 +1,7 @@
 [workspace]
-name = "module_district_heating"
+name = "module_heat_rasters"
 authors = ["See AUTHORS file"]
-description = "In this module district heating potentials and costs are calculated using the approach from Fallahnejad et al. 2024."
+description = "This module develops floor-area and heat-demand disaggregation rasters."
 license = "Apache-2.0"
 readme = "README.md"
 channels = ["conda-forge", "bioconda"]

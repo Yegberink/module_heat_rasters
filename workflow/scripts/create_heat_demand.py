@@ -1,15 +1,14 @@
 """Regionalise annual useful heat demand from arbitrary shapes to hectares.
 
-The upstream ``module_euro_building_heat`` supplies annual useful demand in TWh
-by shape, end use, and category. Configured end uses and categories are mapped
-to residential and non-residential sectors and converted to MWh. Demand is
-split through NUTS-3 regions where available and input-shape regions elsewhere,
-then allocated to hectares using the same floor-area band.
+Annual useful demand is supplied in TWh by shape, end use, and category.
+Configured end uses and categories are mapped to residential and non-residential
+sectors and converted to MWh. Demand is split through NUTS-3 regions where
+available and input-shape regions elsewhere, then allocated to hectares using
+the same floor-area band.
 
 Outputs are a control-region table and a three-band equal-area raster in MWh/ha.
 
-Sources:
-    Upstream demand model: https://github.com/modelblocks-org/module_euro_building_heat
+Source:
     Hectare heat-density method: https://doi.org/10.3390/en12244789
 """
 

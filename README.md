@@ -1,6 +1,6 @@
-# District heating potential and cost
+# Heat disaggregation rasters
 
-In this module district heating potentials and costs are calculated using the approach from Fallahnejad et al. 2024.
+This module develops floor-area and heat-demand rasters for spatially disaggregating heat demand.
 
 <!-- Place an attractive image of module outputs here -->
 <p align="center">
@@ -44,8 +44,8 @@ We use [`pixi`](https://pixi.sh/) as our package manager for development.
 Once installed, run the following to clone this repository and install all dependencies.
 
 ```shell
-git clone git@github.com:modelblocks-org/module_district_heating.git
-cd module_district_heating
+git clone git@github.com:modelblocks-org/module_heat_rasters.git
+cd module_heat_rasters
 pixi install --all
 ```
 

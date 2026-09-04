@@ -3,11 +3,10 @@
 # https://citation-file-format.github.io/
 cff-version: 1.2.0
 message: If you use this software or data produced by it, please cite it using the metadata from this file.
-title: "Modelblocks - module_district_heating: District heating potential and cost"
-repository: "https://github.com/modelblocks-org/module_district_heating"
+title: "Modelblocks - module_heat_rasters: Heat disaggregation rasters"
+repository: "https://github.com/modelblocks-org/module_heat_rasters"
 license: Apache-2.0
 authors:
   - given-names: "Yannick"
     family-names: "Egberink"
     email: "y.f.egberink@tudelft.nl"
-

@@ -12,7 +12,6 @@ maintainers:
 -   email: y.f.egberink@tudelft.nl
     family_name: Egberink
     given_name: Yannick
-module_code_name: module_district_heating
-module_description: In this module district heating potentials and costs are calculated
-    using the approach from Fallahnejad et al. 2024.
-module_human_name: District heating potential and cost
+module_code_name: module_heat_rasters
+module_description: This module develops floor-area and heat-demand disaggregation rasters.
+module_human_name: Heat disaggregation rasters

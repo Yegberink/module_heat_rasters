@@ -1,8 +1,4 @@
-In this module I would like to calculate district heating potentials and costs based on this approach: [https://www-sciencedirect-com.tudelft.idm.oclc.org/science/article/pii/S0306261923015180?utm_source=chatgpt.com#bb0150](https://www-sciencedirect-com.tudelft.idm.oclc.org/science/article/pii/S0306261923015180?utm_source=chatgpt.com#bb0150). 
-
-I want to link this to the following module: [https://github.com/modelblocks-org/module_euro_building_heat](https://github.com/modelblocks-org/module_euro_building_heat) to provide the heat demand base layer. 
-
-In the future this module should be linked with a spatially explicit heat supply module including waste heat and geothermal energy. 
+In this module I would like to develop rasters for disaggregating heat.
 
 some general information:
 - any assumptions made should be in config/config.yaml

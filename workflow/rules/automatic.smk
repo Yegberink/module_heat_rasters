@@ -1,9 +1,6 @@
 """Download regionalisation sources."""
 
 
-use rule * from module_euro_building_heat as module_euro_building_heat_*
-
-
 rule download_nuts3:
     output:
         geojson="<resources>/automatic/gisco/nuts3.geojson",

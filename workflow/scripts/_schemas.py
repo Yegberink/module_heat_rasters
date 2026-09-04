@@ -6,7 +6,7 @@ units, non-negativity, and conservation identities. Assertions are intentional:
 invalid throughput must stop the workflow rather than be repaired silently.
 
 Source contracts represented here include EUBUCCO v0.2, Eurostat GISCO NUTS,
-Eurostat Census 2021, GHS-POP R2023A, and ``module_euro_building_heat``.
+Eurostat Census 2021, GHS-POP R2023A, and annual useful-heat demand.
 """
 
 import json
@@ -288,7 +288,7 @@ def validate_population_raster(path: str | Path, resolution: int) -> None:
 
 
 def validate_annual_heat_demand(path: str | Path, shape_ids: pd.Index) -> pd.DataFrame:
-    """Validate the annual useful-heat output of module_euro_building_heat."""
+    """Validate annual useful heat demand supplied to the module."""
     demand = pd.read_parquet(path)
     assert demand.index.names == ["year", "end_use", "cat_name"]
     assert set(demand.columns.astype(str)) == set(shape_ids.astype(str))

@@ -12,7 +12,7 @@ pathvars:
     shapes="<resources>/user/{shapes}/shapes.parquet",
     annual_heat_demand="<results>/{shapes}/annual/heat_demand_twh.parquet",
     heat_demand_density="<results>/{shapes}/heat_demand_density_{year}.tif",
-    nuts3_heat_demand="<results>/{shapes}/nuts3_heat_demand_{year}.parquet",
+    regional_heat_demand="<results>/{shapes}/regional_heat_demand_{year}.parquet",
 
 
 # Load the example configuration. This will be overridden by users.
@@ -58,6 +58,8 @@ workflow.source_path("scripts/_raster.py")
 workflow.source_path("scripts/_plots.py")
 workflow.source_path("scripts/_eubucco.py")
 workflow.source_path("scripts/_floor_area.py")
+workflow.source_path("scripts/_microsoft.py")
+workflow.source_path("scripts/_regions.py")
 
 
 rule all:

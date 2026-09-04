@@ -22,8 +22,10 @@ and the `snakemake` [documentation](https://snakemake.readthedocs.io/en/stable/s
 
 Data processing steps:
 
-1. Download the published Hotmaps residential and non-residential heated gross floor-area rasters.
-2. Validate their 100 m ETRS89-LAEA grid and combine them into a three-band GeoTIFF with residential, non-residential, and total floor area.
+1. Reconstruct NUTS-3 residential floor-area totals from Eurostat where available.
+2. Allocate totals with EUBUCCO buildings, falling back by complete region and sector to only the required Microsoft level-nine footprint tiles.
+3. Estimate totals outside Eurostat coverage from configurable reference-country or explicit dwelling/floor assumptions.
+4. Regionalise annual useful heat demand to a 100 m European LAEA or global Mollweide grid.
 
 ## Configuration
 <!-- Please describe how to configure this module below -->
@@ -82,8 +84,8 @@ snakemake --use-conda --cores 2  # run the workflow!
 This module is based on the following research and datasets:
 
 * Müller, A., Hummel, M., Kranzl, L., Fallahnejad, M., & Büchele, R. (2019). [Open Source Data for Gross Floor Area and Heat Demand Density on the Hectare Level for EU 28](https://doi.org/10.3390/en12244789). *Energies*, 12(24), 4789.
-* [Hotmaps residential heated gross floor-area density](https://gitlab.com/hotmaps/buildings/gfa_res_curr_density), CC BY 4.0.
-* [Hotmaps non-residential heated gross floor-area density](https://gitlab.com/hotmaps/buildings/gfa_nonres_curr_density), CC BY 4.0.
+* [EUBUCCO v0.2](https://docs.eubucco.com/v0.2/).
+* [Microsoft Global ML Building Footprints](https://github.com/microsoft/GlobalMLBuildingFootprints), CDLA Permissive 2.0.
 
 ## Contributors ✨
 

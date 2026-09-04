@@ -9,7 +9,7 @@ rule create_heat_demand_density:
         floor_area=rules.merge_floor_area.output.raster,
     output:
         raster="<heat_demand_density>",
-        nuts3="<nuts3_heat_demand>",
+        regions="<regional_heat_demand>",
     log:
         "<logs>/{shapes}/create_heat_demand_density_{year}.log",
     conda:

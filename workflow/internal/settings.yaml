@@ -5,13 +5,11 @@ resources:
     nuts3: "https://gisco-services.ec.europa.eu/distribution/v2/nuts/geojson/NUTS_RG_01M_2021_3035_LEVL_3.geojson"
     ghsl_population: "https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/GHSL/GHS_POP_GLOBE_R2023A/{stem}/V1-0/{stem}_V1_0.zip"
     ghsl_stem: "GHS_POP_E{epoch}_GLOBE_R2023A_54009_{resolution}"
-    eubucco_endpoint: "https://s3.eubucco.com"
     eubucco_nuts: "https://s3.eubucco.com/eubucco/v{version}/additional/NUTS-regions-2016.parquet"
     eubucco_stats: "https://s3.eubucco.com/eubucco/v{version}/additional/region-stats.parquet"
-    eubucco_buildings: "eubucco/v{version}/buildings/parquet/nuts_id={nuts2}/{nuts2}.parquet"
-    eubucco_buildings_url: "https://s3.eubucco.com/eubucco/v{version}/buildings/parquet/nuts_id={nuts2}/{nuts2}.parquet"
-    eubucco_lightweight: "https://s3.eubucco.com/eubucco/v{version}/additional/eubucco_lat_lon.parquet"
-    eubucco_lightweight_path: "eubucco/v{version}/additional/eubucco_lat_lon.parquet"
+    eubucco_buildings: "https://s3.eubucco.com/eubucco/v{version}/additional/eubucco_lat_lon.parquet"
+    microsoft_index: "https://bfppub.blob.core.windows.net/$web/{release}/dataset-links.csv"
+  eubucco_countries: [AUT, BEL, BGR, CHE, CYP, CZE, DEU, DNK, ESP, EST, FIN, FRA, GBR, GRC, HRV, HUN, IRL, ITA, LTU, LUX, LVA, MLT, NLD, NOR, POL, PRT, ROU, SVK, SVN, SWE]
 country_codes:
   ALB: AL
   AND: AD
@@ -44,7 +42,7 @@ country_codes:
   MLT: MT
   MNE: ME
   NLD: NL
-  NOR: NO
+  NOR: "NO"
   POL: PL
   PRT: PT
   ROU: RO
@@ -53,3 +51,4 @@ country_codes:
   SVK: SK
   SVN: SI
   SWE: SE
+  XKX: XK

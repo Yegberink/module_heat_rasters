@@ -4,13 +4,18 @@ floor_area:
   ghsl_epoch: 2025
   ghsl_resolution: 100
   ghsl_chunk_size: 2048
+  # Maximum balanced jobs; small scopes use one job per current NUTS-2 group.
+  nuts3_batches: 128
   eubucco:
     version: "0.2"
-    source_strategy: auto
-    regional_max_fraction: 0.8
     residential_type: residential
     commercial_subtypes: [commercial, public]
     assignment: centroid
+    floor_bin_representatives:
+      n_floors_0_2: 1
+      n_floors_2_4: 3
+      n_floors_4_7: 5.5
+      n_floors_7_inf: 9
   useful_to_gross_ratio: 1.2
   floor_space_m2:
     SQM_LT30: 25
@@ -38,27 +43,83 @@ floor_area:
 # missing. Multiple reference countries are averaged with equal weight.
 data_proxies:
   residential_floor_area:
-    ALB: [BGR, HRV, HUN, ROU, GRC]
-    AND: [ESP]
-    BIH: [BGR, HRV, HUN, ROU, GRC]
     GBR: [IRL]
-    MKD: [BGR, HRV, HUN, ROU, GRC]
-    MCO: [FRA]
-    MNE: [BGR, HRV, HUN, ROU, GRC]
-    SMR: [ITA]
-    SRB: [BGR, HRV, HUN, ROU, GRC]
-  commercial_floor_area:
-    ALB: [BGR, HRV, HUN, ROU, GRC]
-    AND: [ESP]
-    BIH: [BGR, HRV, HUN, ROU, GRC]
-    ISL: [SWE, DNK]
-    LIE: [CHE]
-    MKD: [BGR, HRV, HUN, ROU, GRC]
-    MCO: [FRA]
-    MNE: [BGR, HRV, HUN, ROU, GRC]
-    NOR: [SWE, DNK]
-    SMR: [ITA]
-    SRB: [BGR, HRV, HUN, ROU, GRC]
+  # Microsoft footprints replace population as the spatial fallback. Settings
+  # are per target country because building-stock assumptions vary strongly.
+  microsoft:
+    release: "2026-08-13"
+    countries:
+      ALB: &balkan_proxy
+        floor_area:
+          method: reference_countries
+          parameters: {countries: [BGR, HRV, HUN, ROU, GRC], estimator: area_per_dwelling}
+        sector_split:
+          method: reference_countries
+          parameters: {countries: [BGR, HRV, HUN, ROU, GRC]}
+      AND: &spain_proxy
+        floor_area:
+          method: reference_countries
+          parameters: {countries: [ESP], estimator: area_per_dwelling}
+        sector_split:
+          method: reference_countries
+          parameters: {countries: [ESP]}
+      BIH: *balkan_proxy
+      ISL: &nordic_proxy
+        floor_area:
+          method: reference_countries
+          parameters: {countries: [SWE, DNK], estimator: area_per_dwelling}
+        sector_split:
+          method: reference_countries
+          parameters: {countries: [SWE, DNK]}
+      LIE: &swiss_proxy
+        floor_area:
+          method: reference_countries
+          parameters: {countries: [CHE], estimator: area_per_dwelling}
+        sector_split:
+          method: reference_countries
+          parameters: {countries: [CHE]}
+      MKD: *balkan_proxy
+      MCO: &france_proxy
+        floor_area:
+          method: reference_countries
+          parameters: {countries: [FRA], estimator: area_per_dwelling}
+        sector_split:
+          method: reference_countries
+          parameters: {countries: [FRA]}
+      MNE: *balkan_proxy
+      NOR: *nordic_proxy
+      SMR: &italy_proxy
+        floor_area:
+          method: reference_countries
+          parameters: {countries: [ITA], estimator: area_per_dwelling}
+        sector_split:
+          method: reference_countries
+          parameters: {countries: [ITA]}
+      SRB: *balkan_proxy
+      XKX: *balkan_proxy
+      BRA:
+        floor_area:
+          method: reference_countries
+          parameters:
+            countries: [PRT]
+            estimator: area_per_dwelling
+        sector_split:
+          method: reference_countries
+          parameters:
+            countries: [PRT]
+      ZAF:
+        floor_area:
+          method: user_specified
+          parameters:
+            estimator: area_per_dwelling
+            gross_floor_area_per_dwelling_m2: 90
+            persons_per_dwelling: 3.2
+        sector_split:
+          method: user_specified
+          parameters:
+            shares:
+              residential: 0.8
+              non_residential: 0.2
 
 # Annual building-heat categories and end uses included in district heating.
 heat_demand:
@@ -69,6 +130,7 @@ heat_demand:
 
 # Hectare output settings. Bounds are derived from each {shapes} case.
 raster:
+  crs: auto
   cell_size_m: 100
   dtype: float32
   nodata: 0.0

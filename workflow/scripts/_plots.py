@@ -6,6 +6,7 @@ These plots are diagnostics; the underlying GeoTIFF retains untransformed data.
 """
 
 from pathlib import Path
+from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -22,9 +23,10 @@ def plot_floor_area(
     max_size: int,
 ) -> None:
     """Plot a Dask-coarsened floor-area band without loading the full raster."""
-    with rioxarray.open_rasterio(
+    opened: Any = rioxarray.open_rasterio(
         raster_path, chunks={"x": chunk_size, "y": chunk_size}
-    ) as raster:
+    )
+    with opened as raster:
         values = raster.sel(band=band)
         factor = max(1, int(np.ceil(max(values.shape) / max_size)))
         values = (

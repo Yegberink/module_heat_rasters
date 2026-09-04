@@ -1,6 +1,6 @@
-"""Merge NUTS-3 partials into the final hectare floor-area raster.
+"""Merge control-region partials into the final hectare floor-area raster.
 
-Because every partial is aligned to the same EPSG:3035 grid, residential and
+Because every partial is aligned to one equal-area grid, residential and
 commercial/public bands can be added without reprojection. The total band is
 derived after the merge, provenance is stored as raster metadata, and separate
 diagnostic maps expose the two allocation layers.
@@ -23,16 +23,21 @@ if TYPE_CHECKING:
 
 sys.stderr = open(snakemake.log[0], "w")
 settings = snakemake.params.floor_area
-shapes = gpd.read_parquet(snakemake.input.shapes).to_crs("EPSG:3035")
 plan = read_plan(snakemake.input.plan)
-profile = output_profile(shapes.total_bounds, snakemake.params.raster)
+shapes = gpd.read_parquet(snakemake.input.shapes).to_crs(plan["crs"])
+profile = output_profile(shapes.total_bounds, snakemake.params.raster, plan["crs"])
 Path(snakemake.output.raster).parent.mkdir(parents=True, exist_ok=True)
 
 # Partials share one aligned grid, so their residential and commercial bands
 # can be added directly without reprojection or resampling.
+partials = {
+    path.stem: path
+    for batch in snakemake.input.batches
+    for path in Path(batch).glob("*.tif")
+}
 with rasterio.open(snakemake.output.raster, "w+", **profile) as output:
-    for path in snakemake.input.partials:
-        with rasterio.open(path) as partial:
+    for region_id in plan["regions"]:
+        with rasterio.open(partials[region_id]) as partial:
             add_partial(output, partial)
     finish_raster(
         output,
@@ -41,16 +46,13 @@ with rasterio.open(snakemake.output.raster, "w+", **profile) as output:
         {
             "census_reference_year": settings["reference_year"],
             "eubucco_version": settings["eubucco"]["version"],
-            "eubucco_source_strategy": plan["selected_strategy"],
+            "microsoft_release": plan["microsoft_release"],
             "ghsl_epoch": settings["ghsl_epoch"],
             "building_assignment": settings["eubucco"]["assignment"],
         },
     )
 validate_density_raster(
-    snakemake.output.raster,
-    snakemake.params.raster,
-    ("m2/ha",) * 3,
-    FLOOR_AREA_BANDS,
+    snakemake.output.raster, snakemake.params.raster, ("m2/ha",) * 3, FLOOR_AREA_BANDS
 )
 
 # Diagnostic maps make the two independently constructed sector bands visible.

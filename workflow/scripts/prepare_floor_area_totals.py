@@ -1,20 +1,8 @@
-"""Prepare NUTS-3 population and gross floor-area control totals.
+"""Prepare residential and commercial/public control-region floor-area totals.
 
-Residential totals come from Eurostat Census 2021 dwelling floor-space classes,
-or from room classes where floor space is unavailable. Missing target regions
-use the configured mean gross-floor-area-per-resident intensity of reference
-countries. Commercial/public fallback intensities are derived from EUBUCCO
-regional statistics and GHS-POP and are prepared only for configured countries.
-All conversion factors and proxy-country choices live in ``config/config.yaml``.
-
-The output contains control totals, not spatial densities. They are distributed
-over building centroids or population cells by ``create_nuts3_floor_area.py``.
-
-Sources:
-    Floor-area method: https://doi.org/10.3390/en12244789
-    Census definitions: https://ec.europa.eu/eurostat/cache/metadata/en/cens_21_esms.htm
-    GHS-POP R2023A: https://human-settlement.emergency.copernicus.eu/documents/GHSL_Data_Package_2023.pdf
-    EUBUCCO: https://doi.org/10.1038/s41597-023-02040-2
+Eurostat residential totals remain authoritative for NUTS-3 regions. Elsewhere,
+Microsoft proxy settings provide either a demographic dwelling estimate or a
+mean-floors estimate. Population is a control input only, never a spatial weight.
 """
 
 import sys
@@ -24,7 +12,14 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import pandas as pd
 import rioxarray
-from _floor_area import census_values, population_sums, residential_floor_area
+from _eubucco import read_plan
+from _floor_area import (
+    census_values,
+    dwelling_counts,
+    population_sums,
+    residential_floor_area,
+)
+from _microsoft import assumed_floor_area, explicit_sector_shares
 from _schemas import (
     validate_eubucco_stats,
     validate_floor_area_totals,
@@ -38,119 +33,149 @@ if TYPE_CHECKING:
 
 sys.stderr = open(snakemake.log[0], "w")
 settings = snakemake.params.floor_area
+proxies = snakemake.params.proxies
 countries = snakemake.params.country_codes
 reverse_countries = {code: country for country, code in countries.items()}
-
-# Current NUTS-3 regions are the output geography; the source vintage is kept
-# separately because the Eurostat census values use those historical codes.
-nuts3 = (
-    validate_nuts3(snakemake.input.nuts3).to_crs("EPSG:3035").set_index("nuts3_id")
-)
-nuts3_source = validate_nuts3_source(snakemake.input.nuts3_source).to_crs(
-    "EPSG:3035"
-)
-nuts3_source["country_id"] = nuts3_source.CNTR_CODE.map(reverse_countries)
-nuts3_source = nuts3_source.set_index("NUTS_ID")
+regions = validate_nuts3(snakemake.input.nuts3).set_index("region_id")
+nuts_source = validate_nuts3_source(snakemake.input.nuts3_source).to_crs(regions.crs)
+nuts_source["country_id"] = nuts_source.CNTR_CODE.map(reverse_countries)
+nuts_source = nuts_source.set_index("NUTS_ID")
 validate_population_raster(snakemake.input.population, settings["ghsl_resolution"])
-
-# Chunked access limits each polygon aggregation to the required raster window.
-population = (
-    rioxarray.open_rasterio(
-        snakemake.input.population,
-        masked=True,
-        chunks={
-            "band": 1,
-            "x": settings["ghsl_chunk_size"],
-            "y": settings["ghsl_chunk_size"],
-        },
-        cache=False,
-    )
-    .squeeze(drop=True)
-    .fillna(0)
+population_source: Any = rioxarray.open_rasterio(
+    snakemake.input.population,
+    masked=True,
+    chunks={"band": 1, "x": settings["ghsl_chunk_size"], "y": settings["ghsl_chunk_size"]},
+    cache=False,
 )
-regional_population = population_sums(population, nuts3)
-census = residential_floor_area(
-    census_values(snakemake.input.census, settings["reference_year"]), settings
-)
+population = population_source.squeeze(drop=True).fillna(0)
+regional_population = population_sums(population, regions)
+raw_census = census_values(snakemake.input.census, settings["reference_year"])
+census_area = residential_floor_area(raw_census, settings)
+census_dwellings = dwelling_counts(raw_census, settings)
 stats = validate_eubucco_stats(snakemake.input.eubucco_stats)
-population_cache = {}
-residential_intensities = {}
-commercial_intensities = {}
+plan = read_plan(snakemake.input.plan)
+microsoft_area = (
+    pd.read_parquet(snakemake.input.microsoft)
+    .groupby("region_id")
+    .footprint_area_m2.sum()
+    .reindex(regions.index, fill_value=0)
+)
 
 
-def residential_intensity(country):
-    """Return census gross residential floor area per GHS-POP resident.
-
-    Only source-vintage NUTS-3 regions with a reported census total contribute
-    to both numerator and denominator.
-    """
-    valid = census.index.intersection(
-        nuts3_source.index[nuts3_source.country_id.eq(country)]
-    )
-    valid = valid[census.reindex(valid).notna()]
-    support = population_sums(population, nuts3_source.loc[valid]).sum()
-    total = census.loc[valid].sum()
-    assert total > 0
-    assert support > 0
-    return total / support
-
-
-def commercial_intensity(country):
-    """Return EUBUCCO commercial/public floor area per GHS-POP resident.
-
-    Population is cached because it is shared by every target region using the
-    same reference country.
-    """
-    selected = stats.loc[stats.country.eq(countries[country])].set_index("region_id")
-    total = (
-        selected.floor_area_subtype_commercial.sum()
-        + selected.floor_area_subtype_public.sum()
-    )
-    if country not in population_cache:
-        population_cache[country] = population_sums(population, selected).sum()
-    assert total > 0
-    assert population_cache[country] > 0
-    return total / population_cache[country]
-
-
-residential_totals = census.reindex(nuts3.index)
-commercial_fallback = pd.Series(np.nan, index=nuts3.index)
-
-# Fill missing regional values with configured reference-country intensities.
-# Commercial fallbacks are prepared only for countries that may need them later.
-for nuts3_id, region in nuts3.iterrows():
-    if pd.isna(residential_totals[nuts3_id]):
-        references = snakemake.params.proxies["residential_floor_area"][
-            region.country_id
-        ]
-        for country in references:
-            if country not in residential_intensities:
-                residential_intensities[country] = residential_intensity(country)
-        residential_totals[nuts3_id] = (
-            np.mean([residential_intensities[country] for country in references])
-            * regional_population[nuts3_id]
+def reference_dwelling_parameters(reference_countries):
+    """Equal-weight country means for dwelling area and occupancy."""
+    values = []
+    for country in reference_countries:
+        valid = census_area.index.intersection(
+            nuts_source.index[nuts_source.country_id.eq(country)]
         )
-    if region.country_id in snakemake.params.proxies["commercial_floor_area"]:
-        references = snakemake.params.proxies["commercial_floor_area"][
-            region.country_id
-        ]
-        for country in references:
-            if country not in commercial_intensities:
-                commercial_intensities[country] = commercial_intensity(country)
-        commercial_fallback[nuts3_id] = (
-            np.mean([commercial_intensities[country] for country in references])
-            * regional_population[nuts3_id]
+        valid = valid[census_area.reindex(valid).notna() & census_dwellings.reindex(valid).gt(0)]
+        total_area = census_area.loc[valid].sum()
+        dwellings = census_dwellings.loc[valid].sum()
+        inhabitants = population_sums(population, nuts_source.loc[valid]).sum()
+        assert total_area > 0
+        assert dwellings > 0
+        assert inhabitants > 0
+        values.append((total_area / dwellings, inhabitants / dwellings))
+    return np.mean(values, axis=0)
+
+
+def reference_mean_floors(reference_countries):
+    """Equal-weight effective storeys from EUBUCCO stock statistics."""
+    values = []
+    representatives = pd.Series(settings["eubucco"]["floor_bin_representatives"])
+    for country in reference_countries:
+        selected = stats.loc[stats.country.eq(countries[country])]
+        counts = selected[representatives.index].sum()
+        assert counts.sum() > 0
+        values.append(counts.dot(representatives) / counts.sum())
+    return np.mean(values)
+
+
+def sector_shares(proxy):
+    """Return explicit or equal-weight reference-country sector shares."""
+    if proxy["method"] == "user_specified":
+        return explicit_sector_shares(proxy)
+    values = []
+    for country in proxy["parameters"]["countries"]:
+        selected = stats.loc[stats.country.eq(countries[country])]
+        residential = selected.floor_area_type_residential.sum()
+        commercial = (
+            selected.floor_area_subtype_commercial.sum()
+            + selected.floor_area_subtype_public.sum()
         )
+        assert residential > 0
+        assert commercial > 0
+        values.append(residential / (residential + commercial))
+    residential = float(np.mean(values))
+    return residential, 1 - residential
+
+
+residential_totals = census_area.reindex(regions.index)
+commercial_totals = pd.Series(np.nan, index=regions.index)
+for region_id, region in regions.iterrows():
+    source = plan["regions"][region_id]
+    if "microsoft" not in {source["residential_source"], source["commercial_source"]}:
+        continue
+    proxy = proxies["microsoft"]["countries"][region.country_id]
+    residential_share, commercial_share = sector_shares(proxy["sector_split"])
+    floor = proxy["floor_area"]
+    parameters = floor["parameters"]
+    if pd.isna(residential_totals[region_id]):
+        if parameters["estimator"] == "area_per_dwelling":
+            if floor["method"] == "reference_countries":
+                area, occupancy = reference_dwelling_parameters(parameters["countries"])
+            else:
+                area = parameters["gross_floor_area_per_dwelling_m2"]
+                occupancy = parameters["persons_per_dwelling"]
+            resolved = {
+                "estimator": "area_per_dwelling",
+                "gross_floor_area_per_dwelling_m2": area,
+                "persons_per_dwelling": occupancy,
+            }
+        else:
+            mean_floors = (
+                reference_mean_floors(parameters["countries"])
+                if floor["method"] == "reference_countries"
+                else parameters["mean_floors"]
+            )
+            resolved = {"estimator": "mean_floors", "mean_floors": mean_floors}
+        residential_totals[region_id], commercial_totals[region_id] = assumed_floor_area(
+            regional_population[region_id],
+            microsoft_area[region_id],
+            resolved,
+            (residential_share, commercial_share),
+        )
+    else:
+        commercial_totals[region_id] = (
+            residential_totals[region_id] * commercial_share / residential_share
+        )
+
+# EUBUCCO regions with missing Eurostat totals retain the established
+# reference-country floor-area-per-person method.
+for region_id in residential_totals.index[residential_totals.isna()]:
+    region = regions.loc[region_id]
+    references = proxies["residential_floor_area"][region.country_id]
+    intensities = []
+    for country in references:
+        valid = census_area.index.intersection(nuts_source.index[nuts_source.country_id.eq(country)])
+        valid = valid[census_area.reindex(valid).notna()]
+        support = population_sums(population, nuts_source.loc[valid]).sum()
+        assert census_area.loc[valid].sum() > 0
+        assert support > 0
+        intensities.append(census_area.loc[valid].sum() / support)
+    residential_totals[region_id] = np.mean(intensities) * regional_population[region_id]
+
 totals = pd.DataFrame(
     {
-        "nuts3_id": nuts3.index,
-        "country_id": nuts3.country_id,
+        "region_id": regions.index,
+        "country_id": regions.country_id,
         "population": regional_population,
         "residential_total_m2": residential_totals,
-        "commercial_fallback_m2": commercial_fallback,
+        "commercial_fallback_m2": commercial_totals,
     }
 ).reset_index(drop=True)
 Path(snakemake.output.table).parent.mkdir(parents=True, exist_ok=True)
 totals.to_parquet(snakemake.output.table, index=False)
 population.close()
-validate_floor_area_totals(snakemake.output.table, nuts3.index)
+validate_floor_area_totals(snakemake.output.table, regions.index)

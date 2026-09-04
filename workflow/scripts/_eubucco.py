@@ -1,11 +1,8 @@
-"""Shared EUBUCCO planning and canonical-table operations.
+"""Shared EUBUCCO region-mapping and canonical-table operations.
 
-EUBUCCO v0.2 is available either as EPSG:3035 building footprints partitioned
-by NUTS-2 or as one smaller Europe-wide table of centroids and footprint areas.
 This module maps the legacy NUTS 2016 regions used by EUBUCCO to the workflow's
-current NUTS-3 geography and converts both source representations to one local
-schema. Keeping the schema independent of the selected download strategy makes
-all downstream floor-area calculations identical.
+current NUTS-3 geography and converts the simplified Europe-wide table to the
+local schema used by downstream floor-area calculations.
 
 Sources:
     EUBUCCO data and schema: https://docs.eubucco.com/v0.2/
@@ -18,8 +15,7 @@ from pathlib import Path
 import geopandas as gpd
 import pyarrow as pa
 import pyarrow.compute as pc
-import pyarrow.parquet as pq
-import shapely
+import pyarrow.dataset as ds
 
 EUBUCCO_COLUMNS = [
     "id",
@@ -28,10 +24,9 @@ EUBUCCO_COLUMNS = [
     "subtype",
     "floors",
     "footprint_area_m2",
-    "x_3035",
-    "y_3035",
+    "x",
+    "y",
 ]
-SOURCE_COLUMNS = ["id", "region_id", "type", "subtype", "floors", "geometry"]
 EUBUCCO_SCHEMA = pa.schema(
     [
         ("id", pa.string()),
@@ -40,56 +35,44 @@ EUBUCCO_SCHEMA = pa.schema(
         ("subtype", pa.string()),
         ("floors", pa.float64()),
         ("footprint_area_m2", pa.float64()),
-        ("x_3035", pa.float64()),
-        ("y_3035", pa.float64()),
+        ("x", pa.float64()),
+        ("y", pa.float64()),
     ]
 )
 
 
-def canonical_from_footprints(batch: pa.RecordBatch) -> pa.Table:
-    """Convert footprint records to the canonical point schema.
-
-    Footprint area and centroid coordinates are calculated in EUBUCCO's
-    EPSG:3035 equal-area CRS. The centroid is subsequently used to assign each
-    building to one NUTS-3 region and one hectare cell.
-    """
-    geometry = shapely.from_wkb(
-        batch.column("geometry").to_numpy(zero_copy_only=False)
+def needs_eubucco_metadata(target_countries, microsoft, covered_countries) -> bool:
+    """Return whether target coverage or reference proxies need EUBUCCO metadata."""
+    configured = microsoft["countries"]
+    references = any(
+        country in configured
+        and (
+            configured[country]["sector_split"]["method"] == "reference_countries"
+            or (
+                configured[country]["floor_area"]["method"] == "reference_countries"
+                and configured[country]["floor_area"]["parameters"]["estimator"]
+                == "mean_floors"
+            )
+        )
+        for country in target_countries
     )
-    centroids = shapely.centroid(geometry)
-    return pa.Table.from_arrays(
-        [
-            batch.column("id"),
-            batch.column("region_id"),
-            batch.column("type"),
-            batch.column("subtype"),
-            batch.column("floors"),
-            pa.array(shapely.area(geometry)),
-            pa.array(shapely.get_x(centroids)),
-            pa.array(shapely.get_y(centroids)),
-        ],
-        schema=EUBUCCO_SCHEMA,
-    )
+    return bool(set(target_countries) & set(covered_countries)) or references
 
 
-def canonical_from_lightweight(table: pa.Table, transformer) -> pa.Table:
-    """Convert lightweight longitude/latitude records to the canonical schema.
-
-    The lightweight table already contains footprint area. Only its WGS84
-    centroid coordinates are transformed to EPSG:3035.
-    """
+def canonical_from_lightweight(batch: pa.RecordBatch, transformer) -> pa.Table:
+    """Convert pinned WGS84 centroids to the canonical output CRS."""
     x, y = transformer.transform(
-        table["lon"].to_numpy(zero_copy_only=False),
-        table["lat"].to_numpy(zero_copy_only=False),
+        batch.column("lon").to_numpy(zero_copy_only=False),
+        batch.column("lat").to_numpy(zero_copy_only=False),
     )
     return pa.Table.from_arrays(
         [
-            pc.cast(table["id"], pa.string()),
-            pc.cast(table["region_id"], pa.string()),
-            pc.cast(table["type"], pa.string()),
-            pc.cast(table["subtype"], pa.string()),
-            pc.cast(table["floors"], pa.float64()),
-            pc.cast(table["footprint_area"], pa.float64()),
+            pc.cast(batch.column("id"), pa.string()),
+            pc.cast(batch.column("region_id"), pa.string()),
+            pc.cast(batch.column("type"), pa.string()),
+            pc.cast(batch.column("subtype"), pa.string()),
+            pc.cast(batch.column("floors"), pa.float64()),
+            pc.cast(batch.column("footprint_area"), pa.float64()),
             pa.array(x),
             pa.array(y),
         ],
@@ -97,48 +80,68 @@ def canonical_from_lightweight(table: pa.Table, transformer) -> pa.Table:
     )
 
 
-def choose_strategy(requested: str, regional: int, lightweight: int, fraction: float):
-    """Choose the configured strategy or the cheaper automatic transfer.
-
-    ``regional`` is selected automatically only when its estimated projected
-    bytes do not exceed ``fraction * lightweight``. The threshold lets users
-    account for the operational advantage of downloading one reusable file.
-    """
-    if requested == "auto":
-        return "regional" if regional <= lightweight * fraction else "lightweight"
-    return requested
-
-
-def parquet_bytes(filesystem, path: str) -> int:
-    """Estimate bytes read when projecting the required Parquet columns.
-
-    The estimate adds the file metadata and compressed column-chunk sizes for
-    only the source columns used by this workflow. It therefore approximates a
-    range-capable object-store read rather than the complete Parquet file size.
-    """
-    metadata = pq.ParquetFile(path, filesystem=filesystem).metadata
-    indices = [
-        index
-        for index in range(metadata.num_columns)
-        if metadata.schema.column(index).path in SOURCE_COLUMNS
-    ]
-    return metadata.serialized_size + sum(
-        metadata.row_group(row).column(column).total_compressed_size
-        for row in range(metadata.num_row_groups)
-        for column in indices
+def eubucco_batch_filter(region_ids, bounds):
+    """Select legacy regions within the complete current-NUTS batch bounds."""
+    left, bottom, right, top = bounds
+    return (
+        ds.field("region_id").isin(pa.array(region_ids, type=pa.string()))
+        & (ds.field("x") >= left)
+        & (ds.field("x") <= right)
+        & (ds.field("y") >= bottom)
+        & (ds.field("y") <= top)
     )
 
 
-def map_regions(
-    nuts3: gpd.GeoDataFrame,
-    eubucco_regions: gpd.GeoDataFrame,
-    covered_regions,
-) -> dict[str, dict[str, list[str]]]:
-    """Map current NUTS-3 polygons to legacy EUBUCCO regions and files.
+def assign_region_batches(mapping, stats, batch_count: int) -> dict[str, list[str]]:
+    """Balance current NUTS-3 regions over deterministic processing batches.
 
-    A positive-area intersection is required, so regions that merely share a
-    boundary are excluded. Each five-character legacy NUTS-3 ID also identifies
-    its four-character NUTS-2 download partition.
+    Current NUTS-2 groups stay together so neighbouring current regions reuse
+    overlapping legacy EUBUCCO selections. Unique EUBUCCO building counts
+    approximate each group's processing cost; largest-first assignment limits
+    stragglers while identifiers provide deterministic tie-breaking.
+    """
+    counts = stats.set_index("region_id").n
+    groups: dict[str, list[str]] = {}
+    for region in mapping:
+        group = region[:4] if len(region) == 5 else region
+        groups.setdefault(group, []).append(region)
+    weights = {
+        group: int(
+            counts.reindex(
+                {
+                    region_id
+                    for nuts3 in regions
+                    for region_id in mapping[nuts3]["eubucco_region_ids"]
+                }
+            )
+            .fillna(0)
+            .sum()
+        )
+        for group, regions in groups.items()
+    }
+
+    size = min(batch_count, len(groups))
+    batches: dict[str, list[str]] = {f"{index:03d}": [] for index in range(size)}
+    loads = {batch: 0 for batch in batches}
+    ordered = sorted(groups, key=lambda item: (-weights[item], item))
+    for index, group in enumerate(ordered):
+        batch = (
+            f"{index:03d}"
+            if index < size
+            else min(loads, key=lambda item: (loads[item], item))
+        )
+        batches[batch].extend(groups[group])
+        loads[batch] += weights[group]
+    return {batch: sorted(regions) for batch, regions in batches.items()}
+
+
+def map_regions(
+    nuts3: gpd.GeoDataFrame, eubucco_regions: gpd.GeoDataFrame, covered_regions
+) -> dict[str, dict[str, list[str]]]:
+    """Map current NUTS-3 polygons to legacy EUBUCCO regions.
+
+    A same-country, positive-area intersection is required, so generalized
+    borders cannot introduce neighbouring regions.
     """
     legacy = eubucco_regions.loc[
         eubucco_regions.region_id.str.len().eq(5)
@@ -148,12 +151,13 @@ def map_regions(
     for row in nuts3.itertuples():
         positions = legacy.sindex.query(row.geometry, predicate="intersects")
         candidates = legacy.iloc[positions]
+        candidates = candidates.loc[candidates.index.str[:2] == row.region_id[:2]]
         region_ids = sorted(
             candidates.index[
                 candidates.geometry.intersection(row.geometry).area.gt(0)
             ].tolist()
         )
-        mapping[row.nuts3_id] = {
+        mapping[row.region_id] = {
             "region_ids": region_ids,
             "nuts2_ids": sorted({region_id[:4] for region_id in region_ids}),
         }

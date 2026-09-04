@@ -1,11 +1,11 @@
-"""Shared floor-area calculations and population-weighted allocation.
+"""Shared floor-area control totals and building-weighted allocation.
 
 Residential totals are reconstructed from Eurostat Census 2021 dwelling counts
 by useful-floor-space class. Where countries report rooms instead of area, room
 counts are converted with the configured mean area per room. Useful area is then
 converted to gross floor area with the configured ratio. Building centroids
-locate EUBUCCO floor area on the hectare grid; GHS-POP supplies the fallback
-spatial distribution where building coverage is absent.
+locate EUBUCCO or Microsoft building support on the hectare grid. GHS-POP is
+used only to estimate dwelling totals outside Eurostat coverage.
 
 The use of building stock and population proxies follows the hectare-level
 floor-area regionalisation approach described by Müller et al. (2019).
@@ -23,13 +23,24 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 import rasterio
-from _schemas import validate_census, validate_scaling_support
+import shapely
+from _schemas import validate_census
 from affine import Affine
 from gregor.aggregate import aggregate_raster_to_polygon
-from rasterio.enums import Resampling
-from rasterio.features import geometry_mask, geometry_window
-from rasterio.vrt import WarpedVRT
 from rasterio.windows import Window
+
+
+def select_building_sectors(buildings, residential_type, commercial_subtypes):
+    """Return residential and commercial/public building subsets."""
+    return (
+        buildings.loc[buildings["type"].eq(residential_type)],
+        buildings.loc[buildings["subtype"].isin(commercial_subtypes)],
+    )
+
+
+def points_within_scope(points, scope):
+    """Test centroid coordinates against a prepared scope with strict containment."""
+    return shapely.contains_xy(scope, points.x, points.y)
 
 
 def census_values(path: str, year: int) -> pd.DataFrame:
@@ -81,6 +92,20 @@ def residential_floor_area(data: pd.DataFrame, settings: dict[str, Any]) -> pd.S
     return area.where(area.gt(0), rooms).mul(settings["useful_to_gross_ratio"])
 
 
+def dwelling_counts(data: pd.DataFrame, settings: dict[str, Any]) -> pd.Series:
+    """Return dwelling counts from the same census classes used for floor area."""
+    common = data.loc[
+        data.freq.eq("A") & data.building.eq("TOTAL") & data.unit.eq("NR")
+    ]
+    area = common.loc[
+        common.n_room.eq("TOTAL") & common.area.isin(settings["floor_space_m2"])
+    ].groupby("geo").value.sum(min_count=1)
+    rooms = common.loc[
+        common.area.eq("TOTAL") & common.n_room.isin(settings["rooms"])
+    ].groupby("geo").value.sum(min_count=1)
+    return area.where(area.gt(0), rooms)
+
+
 def population_sums(population, polygons: gpd.GeoDataFrame) -> pd.Series:
     """Aggregate GHS-POP counts to polygons through bounded Gregor calls.
 
@@ -100,8 +125,8 @@ def population_sums(population, polygons: gpd.GeoDataFrame) -> pd.Series:
     return pd.Series(values, index=polygons.index, dtype=float)
 
 
-def output_profile(bounds, settings):
-    """Return an EPSG:3035 raster profile aligned to the hectare grid.
+def output_profile(bounds, settings, crs="EPSG:3035"):
+    """Return an equal-area raster profile aligned to the hectare grid.
 
     Bounds are rounded outward to exact multiples of ``cell_size_m``. Every
     partial raster therefore has cell boundaries aligned with the final raster
@@ -118,7 +143,7 @@ def output_profile(bounds, settings):
         "height": round((top - bottom) / cell),
         "count": 3,
         "dtype": settings["dtype"],
-        "crs": "EPSG:3035",
+        "crs": crs,
         "transform": Affine(cell, 0, left, 0, -cell, top),
         "nodata": settings["nodata"],
         "compress": settings["compression"],
@@ -146,50 +171,6 @@ def write_points(output, band, points, values) -> None:
     raster = output.read(band)
     np.add.at(raster, (rows[inside], columns[inside]), values[inside])
     output.write(raster, band)
-
-
-def write_population(output, population, band, geometry, total, support) -> None:
-    """Allocate a regional total to cells in proportion to GHS-POP.
-
-    For cell population :math:`p_i` and regional support :math:`P`, the written
-    value is :math:`p_i T / P`, where :math:`T` is the regional floor-area total.
-    The scaling-support schema requires positive population whenever ``T > 0``.
-    """
-    if total == 0:
-        return
-    validate_scaling_support(np.array([total]), np.array([support]))
-    window = geometry_window(output, [geometry])
-    weights = population.read(1, window=window, masked=True).filled(0)
-    inside = geometry_mask(
-        [geometry], weights.shape, output.window_transform(window), invert=True
-    )
-    values = output.read(band, window=window)
-    values[inside] += weights[inside] * total / support
-    output.write(values, band, window=window)
-
-
-def gridded_population_sum(source, geometry, settings) -> float:
-    """Sum population after conservative reprojection to the hectare grid.
-
-    ``Resampling.sum`` retains population counts when moving from the native
-    Mollweide grid to EPSG:3035. The complete region, rather than its clipped
-    shape intersection, provides the denominator for partial-shape allocation.
-    """
-    profile = output_profile(geometry.bounds, settings)
-    with WarpedVRT(
-        source,
-        crs=profile["crs"],
-        transform=profile["transform"],
-        width=profile["width"],
-        height=profile["height"],
-        nodata=0,
-        resampling=Resampling.sum,
-    ) as population:
-        values = population.read(1, masked=True).filled(0)
-        inside = geometry_mask(
-            [geometry], values.shape, population.transform, invert=True
-        )
-    return float(values[inside].sum(dtype="float64"))
 
 
 def add_partial(output, partial) -> None:

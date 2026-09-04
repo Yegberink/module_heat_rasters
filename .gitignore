@@ -28,3 +28,5 @@ gurobi.log
 **/results/*
 **/temp/*
 **/tmp/*
+**/.tmp/*
+

@@ -2,15 +2,11 @@
 
 The upstream ``module_euro_building_heat`` supplies annual useful demand in TWh
 by shape, end use, and category. Configured end uses and categories are mapped
-to residential and non-residential sectors and converted to MWh. Where a shape
-crosses NUTS-3 boundaries, its demand is first split by sector-specific floor
-area. The resulting NUTS-3 totals are then allocated to hectares using the same
-floor-area band. Both stages are mass preserving and require positive proxy
-support for every positive demand total.
+to residential and non-residential sectors and converted to MWh. Demand is
+split through NUTS-3 regions where available and input-shape regions elsewhere,
+then allocated to hectares using the same floor-area band.
 
-Outputs are a NUTS-3 control-total table and a three-band EPSG:3035 raster in
-MWh/ha. This two-stage representation supports later matching with spatial heat
-sources while retaining an auditable administrative total.
+Outputs are a control-region table and a three-band equal-area raster in MWh/ha.
 
 Sources:
     Upstream demand model: https://github.com/modelblocks-org/module_euro_building_heat
@@ -39,7 +35,7 @@ from _schemas import (
     validate_annual_heat_demand,
     validate_density_raster,
     validate_nuts3,
-    validate_nuts3_heat_demand,
+    validate_regional_heat_demand,
     validate_scaling_support,
 )
 
@@ -87,11 +83,10 @@ with rasterio.open(snakemake.input.floor_area) as floor_area:
     shapes = shapes.to_crs(floor_area.crs)
     nuts3 = nuts3.to_crs(floor_area.crs)
 
-    # Split each input shape by NUTS-3 so shape-level demand can cross the
-    # administrative boundaries used by the downstream supply model.
+    # Split shape demand by the applicable NUTS-3 or shape control regions.
     intersections = gpd.overlay(
         shapes[["shape_id", "geometry"]],
-        nuts3[["nuts3_id", "geometry"]],
+        nuts3[["region_id", "geometry"]],
         how="intersection",
         keep_geom_type=False,
     )
@@ -109,20 +104,20 @@ with rasterio.open(snakemake.input.floor_area) as floor_area:
             * intersections.shape_id.map(totals[sector])
         )
 
-    # Reaggregate the allocated pieces to complete NUTS-3 demand totals.
+    # Reaggregate the allocated pieces to complete control-region totals.
     nuts_totals = (
-        intersections.groupby("nuts3_id")[[f"{sector}_mwh" for sector in SECTORS]]
+        intersections.groupby("region_id")[[f"{sector}_mwh" for sector in SECTORS]]
         .sum()
-        .reindex(nuts3.nuts3_id, fill_value=0)
+        .reindex(nuts3.region_id, fill_value=0)
     )
     assert np.allclose(nuts_totals.sum(), totals.sum())
     table = nuts_totals.reset_index()
     table.insert(0, "year", year)
     table["total_mwh"] = table.residential_mwh + table.non_residential_mwh
-    Path(snakemake.output.nuts3).parent.mkdir(parents=True, exist_ok=True)
-    table.to_parquet(snakemake.output.nuts3, index=False)
+    Path(snakemake.output.regions).parent.mkdir(parents=True, exist_ok=True)
+    table.to_parquet(snakemake.output.regions, index=False)
 
-    # Allocate each NUTS-3 total to hectares using the corresponding sector's
+    # Allocate each regional total to hectares using the corresponding sector's
     # floor-area density while clipping the result to the requested shape scope.
     scope = scope_geometry(shapes, floor_area.crs)
     geometries = nuts3.geometry.intersection(scope)
@@ -141,14 +136,14 @@ with rasterio.open(snakemake.input.floor_area) as floor_area:
     )
     with output:
         for band, sector in enumerate(SECTORS, 1):
-            for nuts3_id, geometry in zip(nuts3.nuts3_id, geometries, strict=True):
+            for region_id, geometry in zip(nuts3.region_id, geometries, strict=True):
                 write_scaled(
                     output,
                     band,
                     floor_area,
                     base_window,
                     geometry,
-                    nuts_totals.loc[nuts3_id, f"{sector}_mwh"],
+                    nuts_totals.loc[region_id, f"{sector}_mwh"],
                     band,
                 )
         finish_raster(
@@ -163,7 +158,7 @@ with rasterio.open(snakemake.input.floor_area) as floor_area:
             },
         )
 
-validate_nuts3_heat_demand(snakemake.output.nuts3, year)
+validate_regional_heat_demand(snakemake.output.regions, year)
 validate_density_raster(
     snakemake.output.raster, snakemake.params.raster, ("MWh/ha",) * 3
 )

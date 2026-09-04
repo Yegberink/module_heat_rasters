@@ -16,4 +16,4 @@ dependencies:
 - pyproj >=3.7
 - rasterio >=1.4.0
 - rioxarray >=0.17
-- shapely >=2.0
+- shapely >=2.1

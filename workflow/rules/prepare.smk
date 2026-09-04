@@ -6,6 +6,7 @@ rule prepare_shapes:
         shapes="<shapes>",
     output:
         shapes="<resources>/automatic/{shapes}/land_shapes.parquet",
+        scope="<resources>/automatic/{shapes}/scope_equal_area.parquet",
     log:
         "<logs>/{shapes}/prepare_shapes.log",
     conda:

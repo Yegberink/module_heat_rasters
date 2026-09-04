@@ -10,9 +10,6 @@ min_version("9.19")
 # This allows users to re-wire how the module is used in their workflow with ease.
 pathvars:
     shapes="<resources>/user/{shapes}/shapes.parquet",
-    annual_heat_demand="<results>/{shapes}/annual/heat_demand_twh.parquet",
-    heat_demand_density="<results>/{shapes}/heat_demand_density_{year}.tif",
-    regional_heat_demand="<results>/{shapes}/regional_heat_demand_{year}.parquet",
 
 
 # Load the example configuration. This will be overridden by users.
@@ -32,7 +29,6 @@ include: "rules/_utils.smk"
 include: "rules/automatic.smk"
 include: "rules/prepare.smk"
 include: "rules/floor_area.smk"
-include: "rules/heat_demand.smk"
 
 
 # Add additional files to be delivered alongside the workflow here.

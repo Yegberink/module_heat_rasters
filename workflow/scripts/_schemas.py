@@ -1,4 +1,4 @@
-"""Executable schemas for all regionalisation inputs and outputs.
+"""Executable schemas for all floor-area inputs and outputs.
 
 Each reader checks structural, spatial, and numeric invariants before returning
 data to a calculation. Output validators additionally enforce band ordering,
@@ -6,7 +6,7 @@ units, non-negativity, and conservation identities. Assertions are intentional:
 invalid throughput must stop the workflow rather than be repaired silently.
 
 Source contracts represented here include EUBUCCO v0.2, Eurostat GISCO NUTS,
-Eurostat Census 2021, GHS-POP R2023A, and annual useful-heat demand.
+Eurostat Census 2021, and GHS-POP R2023A.
 """
 
 import json
@@ -23,8 +23,6 @@ import shapely
 from _eubucco import EUBUCCO_COLUMNS, EUBUCCO_SCHEMA
 from _microsoft import MICROSOFT_COLUMNS, MICROSOFT_SCHEMA
 
-SECTORS = ("residential", "non_residential")
-RASTER_BANDS = (*SECTORS, "total")
 FLOOR_AREA_BANDS = ("residential", "commercial", "total")
 
 
@@ -287,26 +285,11 @@ def validate_population_raster(path: str | Path, resolution: int) -> None:
         assert np.issubdtype(np.dtype(raster.dtypes[0]), np.floating)
 
 
-def validate_annual_heat_demand(path: str | Path, shape_ids: pd.Index) -> pd.DataFrame:
-    """Validate annual useful heat demand supplied to the module."""
-    demand = pd.read_parquet(path)
-    assert demand.index.names == ["year", "end_use", "cat_name"]
-    assert set(demand.columns.astype(str)) == set(shape_ids.astype(str))
-    assert np.isfinite(demand.to_numpy()).all()
-    assert demand.ge(0).all().all()
-    return demand
-
-
-def validate_scaling_support(totals: np.ndarray, proxy_sums: np.ndarray) -> None:
-    """Require a positive proxy wherever a positive total must be allocated."""
-    assert np.all(proxy_sums[totals > 0] > 0)
-
-
 def validate_density_raster(
     path: str | Path,
     schema: dict[str, Any],
     units: tuple[str, str, str],
-    bands: tuple[str, str, str] = RASTER_BANDS,
+    bands: tuple[str, str, str],
 ) -> None:
     """Validate a shape-scoped three-band hectare raster."""
     with rasterio.open(path) as raster:
@@ -336,22 +319,3 @@ def validate_plot(path: str | Path) -> None:
     assert image.shape[0] > 0
     assert image.shape[1] > 0
     assert np.isfinite(image).all()
-
-
-def validate_regional_heat_demand(path: str | Path, year: int) -> None:
-    """Validate annual useful heat-demand totals by control region."""
-    table = pd.read_parquet(path)
-    assert list(table.columns) == [
-        "year",
-        "region_id",
-        "residential_mwh",
-        "non_residential_mwh",
-        "total_mwh",
-    ]
-    assert table.region_id.is_unique
-    assert table.year.eq(year).all()
-    assert np.isfinite(table.iloc[:, 2:].to_numpy()).all()
-    assert table.iloc[:, 2:].ge(0).all().all()
-    assert np.allclose(
-        table.total_mwh, table.residential_mwh + table.non_residential_mwh
-    )

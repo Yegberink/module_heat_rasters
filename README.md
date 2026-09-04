@@ -1,6 +1,6 @@
-# Heat disaggregation rasters
+# Floor-area rasters
 
-This module develops floor-area and heat-demand rasters for spatially disaggregating heat demand.
+This module develops floor-area rasters for subsequent spatial energy-system analysis.
 
 <!-- Place an attractive image of module outputs here -->
 <p align="center">
@@ -25,7 +25,6 @@ Data processing steps:
 1. Reconstruct NUTS-3 residential floor-area totals from Eurostat where available.
 2. Allocate totals with EUBUCCO buildings, falling back by complete region and sector to only the required Microsoft level-nine footprint tiles.
 3. Estimate totals outside Eurostat coverage from configurable reference-country or explicit dwelling/floor assumptions.
-4. Regionalise annual useful heat demand to a 100 m European LAEA or global Mollweide grid.
 
 ## Configuration
 <!-- Please describe how to configure this module below -->

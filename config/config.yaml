@@ -121,13 +121,6 @@ data_proxies:
               residential: 0.8
               non_residential: 0.2
 
-# Annual building-heat categories and end uses included in district heating.
-heat_demand:
-  end_uses: [space_heat, hot_water]
-  categories:
-    household: residential
-    commercial: non_residential
-
 # Hectare output settings. Bounds are derived from each {shapes} case.
 raster:
   crs: auto

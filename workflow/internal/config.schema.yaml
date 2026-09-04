@@ -1,8 +1,8 @@
 $schema: "https://json-schema.org/draft/2020-12/schema"
-description: "Schema for heat-raster regionalisation settings."
+description: "Schema for floor-area raster settings."
 type: object
 additionalProperties: false
-required: [floor_area, data_proxies, heat_demand, raster]
+required: [floor_area, data_proxies, raster]
 properties:
   floor_area:
     type: object
@@ -64,22 +64,6 @@ properties:
             type: object
             propertyNames: {pattern: "^[A-Z]{3}$"}
             additionalProperties: {$ref: "#/$defs/microsoft_country"}
-  heat_demand:
-    type: object
-    additionalProperties: false
-    required: [end_uses, categories]
-    properties:
-      end_uses:
-        type: array
-        minItems: 1
-        uniqueItems: true
-        items: {type: string}
-      categories:
-        type: object
-        minProperties: 1
-        additionalProperties:
-          type: string
-          enum: [residential, non_residential]
   raster:
     type: object
     additionalProperties: false

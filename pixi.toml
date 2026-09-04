@@ -1,7 +1,7 @@
 [workspace]
 name = "module_heat_rasters"
 authors = ["See AUTHORS file"]
-description = "This module develops floor-area and heat-demand disaggregation rasters."
+description = "This module develops floor-area rasters for spatial disaggregation."
 license = "Apache-2.0"
 readme = "README.md"
 channels = ["conda-forge", "bioconda"]

@@ -8,6 +8,7 @@ These plots are diagnostics; the underlying GeoTIFF retains untransformed data.
 from pathlib import Path
 from typing import Any
 
+import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
 import rioxarray
@@ -21,6 +22,8 @@ def plot_floor_area(
     output_path: str,
     chunk_size: int,
     max_size: int,
+    shapes: gpd.GeoDataFrame,
+    outline: dict[str, Any],
     colorbar_label: str = "Floor area (m²/ha)",
 ) -> None:
     """Plot a Dask-coarsened density band without loading the full raster."""
@@ -37,6 +40,7 @@ def plot_floor_area(
             .to_numpy()
         )
         values = np.ma.masked_equal(values, raster.rio.nodata)
+        shapes = shapes.to_crs(raster.rio.crs)
         bounds = raster.rio.bounds()
         extent = bounds[0], bounds[2], bounds[1], bounds[3]
     positive = values.compressed()
@@ -49,6 +53,10 @@ def plot_floor_area(
     image = axis.imshow(
         values, extent=extent, cmap="magma", norm=PowerNorm(0.35, vmin=0, vmax=vmax)
     )
+    # Preserve each user-provided boundary, including internal borders and holes.
+    shapes.boundary.plot(ax=axis, **outline, zorder=2)
+    axis.set_xlim(extent[:2])
+    axis.set_ylim(extent[2:])
     axis.set(title=title, xlabel="Easting (m)", ylabel="Northing (m)")
     figure.colorbar(image, ax=axis, label=colorbar_label)
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)

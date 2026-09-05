@@ -10,13 +10,17 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-import geopandas as gpd
 import rasterio
 from _eubucco import read_plan
 from _floor_area import add_partial, output_profile
 from _plots import plot_floor_area
 from _raster import finish_raster
-from _schemas import FLOOR_AREA_BANDS, validate_density_raster, validate_plot
+from _schemas import (
+    FLOOR_AREA_BANDS,
+    validate_density_raster,
+    validate_plot,
+    validate_shapes,
+)
 
 if TYPE_CHECKING:
     snakemake: Any
@@ -24,7 +28,7 @@ if TYPE_CHECKING:
 sys.stderr = open(snakemake.log[0], "w")
 settings = snakemake.params.floor_area
 plan = read_plan(snakemake.input.plan)
-shapes = gpd.read_parquet(snakemake.input.shapes).to_crs(plan["crs"])
+shapes = validate_shapes(snakemake.input.shapes).to_crs(plan["crs"])
 profile = output_profile(shapes.total_bounds, snakemake.params.raster, plan["crs"])
 Path(snakemake.output.raster).parent.mkdir(parents=True, exist_ok=True)
 
@@ -63,6 +67,8 @@ plot_floor_area(
     snakemake.output.residential_plot,
     snakemake.params.raster["block_size"],
     snakemake.params.raster["plot_max_size"],
+    shapes,
+    snakemake.params.raster["plot_outline"],
 )
 plot_floor_area(
     snakemake.output.raster,
@@ -71,6 +77,8 @@ plot_floor_area(
     snakemake.output.commercial_plot,
     snakemake.params.raster["block_size"],
     snakemake.params.raster["plot_max_size"],
+    shapes,
+    snakemake.params.raster["plot_outline"],
 )
 validate_plot(snakemake.output.residential_plot)
 validate_plot(snakemake.output.commercial_plot)

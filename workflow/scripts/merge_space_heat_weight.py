@@ -58,7 +58,6 @@ with rasterio.open(snakemake.output.raster, "w+", **profile) as output:
         age_1981_2000_factor=settings["age"]["cutoff_spanning_bin_multipliers"][
             "Y1981-2000"
         ],
-        hdd_applied="false",
     )
 validate_space_heat_weight_raster(snakemake.output.raster, snakemake.params.raster)
 
@@ -80,6 +79,8 @@ plot_floor_area(
     snakemake.output.plot,
     snakemake.params.raster["block_size"],
     snakemake.params.raster["plot_max_size"],
+    shapes,
+    snakemake.params.raster["plot_outline"],
     "Space-heating support (weighted m²/ha)",
 )
 validate_plot(snakemake.output.plot)

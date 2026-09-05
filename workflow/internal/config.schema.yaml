@@ -51,7 +51,7 @@ properties:
   space_heat_weight:
     type: object
     additionalProperties: false
-    required: [nuts3_batches, surface_volume, age, hdd]
+    required: [nuts3_batches, surface_volume, age]
     properties:
       nuts3_batches: {type: integer, minimum: 1}
       surface_volume:
@@ -82,13 +82,6 @@ properties:
             required: [Y1981-2000]
             properties:
               Y1981-2000: {type: number, exclusiveMinimum: 0}
-      hdd:
-        type: object
-        additionalProperties: false
-        required: [enabled, elasticity]
-        properties:
-          enabled: {type: boolean, const: false}
-          elasticity: {type: number, minimum: 0}
   data_proxies:
     type: object
     additionalProperties: false
@@ -108,7 +101,7 @@ properties:
   raster:
     type: object
     additionalProperties: false
-    required: [crs, cell_size_m, dtype, nodata, compression, block_size, plot_max_size]
+    required: [crs, cell_size_m, dtype, nodata, compression, block_size, plot_max_size, plot_outline]
     properties:
       crs: {type: string, const: auto}
       cell_size_m: {type: number, const: 100}
@@ -117,6 +110,13 @@ properties:
       compression: {type: string, enum: [deflate, lzw, zstd]}
       block_size: {type: integer, minimum: 16, multipleOf: 16}
       plot_max_size: {type: integer, minimum: 1}
+      plot_outline:
+        type: object
+        additionalProperties: false
+        required: [color, linewidth]
+        properties:
+          color: {type: string, pattern: "^#[0-9a-fA-F]{6}$"}
+          linewidth: {type: number, exclusiveMinimum: 0}
 $defs:
   country_list:
     type: array

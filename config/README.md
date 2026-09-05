@@ -25,8 +25,7 @@ lightweight EUBUCCO source because it contains no footprint perimeter. The live
 Eurostat `cens_21dwop_r3` source combines 1981--2000, so
 `age.cutoff_spanning_bin_multipliers.Y1981-2000` records the explicit equal-decade
 blend across the requested 1991 boundary. Missing height and age observations
-remain neutral; neither is proxied from another country. `hdd.enabled` remains
-false until a weather-data implementation is added. The diagnostic
+remain neutral; neither is proxied from another country. The diagnostic
 `coverage_fraction` preserves Eurostat's reported known-period sum divided by
 its separately reported total; small source inconsistencies can therefore
 produce values marginally above one and are not clipped.

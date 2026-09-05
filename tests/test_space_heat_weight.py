@@ -21,7 +21,7 @@ from _space_heat_weight import (  # noqa: E402
 
 
 def test_configured_hotmaps_parameters():
-    """Default elasticities, age factors, and disabled HDD remain explicit."""
+    """Default compactness elasticity and age factors remain explicit."""
     config = yaml.safe_load(
         (Path(__file__).parents[1] / "config" / "config.yaml").read_text()
     )["space_heat_weight"]
@@ -34,7 +34,6 @@ def test_configured_hotmaps_parameters():
         "1991_2000": 1.0,
         "after_2000": 0.8,
     }
-    assert config["hdd"] == {"enabled": False, "elasticity": 0.5}
 
 
 def test_canonical_eubucco_retains_height():
@@ -103,7 +102,7 @@ def test_age_factors_and_missing_age():
 def test_disabled_corrections_equal_floor_area():
     """All-neutral factors reproduce corrected floor area exactly."""
     floor_area = np.array([100.0, 250.0])
-    assert np.array_equal(space_heat_weight(floor_area, 1, 1, 1), floor_area)
+    assert np.array_equal(space_heat_weight(floor_area, 1, 1), floor_area)
 
 
 def test_high_rise_compactness_synthetic_integration():

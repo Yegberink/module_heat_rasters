@@ -41,7 +41,6 @@ if TYPE_CHECKING:
 
 sys.stderr = open(snakemake.log[0], "w")
 settings = snakemake.params.space_heat_weight
-assert not settings["hdd"]["enabled"]
 plan = validate_eubucco_plan(snakemake.input.plan)
 batches = validate_floor_area_batches(snakemake.input.batches, plan["regions"])
 batch_regions = batches["batches"][snakemake.wildcards.batch]
@@ -120,7 +119,6 @@ for region_id, region in regions.iterrows():
             buildings.floor_area_m2,
             f_sv=f_sv,
             f_age=age_row.age_factor,
-            f_hdd=1.0,
         ),
         index=buildings.index,
     )
@@ -138,7 +136,6 @@ for region_id, region in regions.iterrows():
             region_id=region_id,
             method="floor_area * surface_volume * age",
             surface_volume_method=settings["surface_volume"]["method"],
-            hdd_applied="false",
         )
     validate_space_heat_weight_raster(raster_path, snakemake.params.raster)
 

@@ -57,9 +57,6 @@ space_heat_weight:
       after_2000: 0.8
     cutoff_spanning_bin_multipliers:
       Y1981-2000: 1.125
-  hdd:
-    enabled: false
-    elasticity: 0.5
 
 # Use the mean floor area per person of these countries when source data is
 # missing. Multiple reference countries are averaged with equal weight.
@@ -129,7 +126,7 @@ data_proxies:
           method: reference_countries
           parameters:
             countries: [PRT]
-      ZAF:
+      LBR:
         floor_area:
           method: user_specified
           parameters:
@@ -152,3 +149,6 @@ raster:
   compression: deflate
   block_size: 512
   plot_max_size: 2000
+  plot_outline:
+    color: "#808080"
+    linewidth: 0.6

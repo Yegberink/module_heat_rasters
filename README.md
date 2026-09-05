@@ -44,7 +44,7 @@ EUBUCCO's lightweight table has no footprint perimeter, so compactness uses the
 configured `equivalent_square` approximation and records that method in raster
 metadata. Missing/invalid height and missing observed Eurostat age data are
 neutral corrections of one. Microsoft fallback regions receive no compactness
-correction. HDD is represented in the configuration and helper API but disabled.
+correction.
 
 ## Configuration
 <!-- Please describe how to configure this module below -->

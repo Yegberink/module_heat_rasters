@@ -1,8 +1,7 @@
 """Pure calculations for residential space-heating spatial support.
 
 The support multiplies corrected gross residential floor area by independently
-centred compactness and construction-age factors. HDD is represented here for
-future use but remains disabled by workflow configuration.
+centred compactness and construction-age factors.
 
 The equivalent-square compactness method is an explicit approximation because
 the EUBUCCO v0.2 lightweight table contains height and area, but no footprint
@@ -101,16 +100,6 @@ def age_factor_from_counts(
     )
 
 
-def hdd_factor(hdd, country_reference, elasticity: float):
-    """Return the future reduced-elasticity local HDD correction."""
-    hdd, reference = np.broadcast_arrays(
-        np.asarray(hdd, dtype=float), np.asarray(country_reference, dtype=float)
-    )
-    valid = np.isfinite(hdd) & np.isfinite(reference) & (hdd > 0) & (reference > 0)
-    factor = np.where(valid, np.power(hdd / reference, elasticity), np.nan)
-    return _return(factor)
-
-
-def space_heat_weight(floor_area_m2, f_sv=1.0, f_age=1.0, f_hdd=1.0):
+def space_heat_weight(floor_area_m2, f_sv=1.0, f_age=1.0):
     """Combine corrected floor area and dimensionless heat-support factors."""
-    return np.asarray(floor_area_m2) * f_sv * f_age * f_hdd
+    return np.asarray(floor_area_m2) * f_sv * f_age

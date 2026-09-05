@@ -12,3 +12,16 @@ pathvars:
     results:
       default: "<results>"
       description: "location of module result (output) files."
+  user_resources:
+    shapes:
+      default: "<resources>/user/{shapes}/shapes.parquet"
+      description: Land polygons with shape, country, class, and geometry columns.
+  results:
+    floor_area:
+      default: "<results>/{shapes}/rasters/floor_area.tif"
+      description: Residential and commercial/public gross floor area per hectare.
+    residential_space_heat_weight:
+      default: "<results>/{shapes}/rasters/residential_space_heat_weight.tif"
+      description: Hectare support weights for allocating national residential space-heating demand.
+wildcards:
+  shapes: Name of the provided shape set.

@@ -67,3 +67,29 @@ def floor_area_batch_inputs(wildcards):
         )
         for batch in plan["batches"]
     ]
+
+
+def read_space_heat_weight_batch_plan(wildcards):
+    import json
+
+    path = checkpoints.prepare_space_heat_weight_batches.get(
+        shapes=wildcards.shapes
+    ).output.manifest
+    with open(path) as stream:
+        return json.load(stream)
+
+
+def space_heat_weight_batch_plan_input(wildcards):
+    return checkpoints.prepare_space_heat_weight_batches.get(
+        shapes=wildcards.shapes
+    ).output.manifest
+
+
+def space_heat_weight_batch_inputs(wildcards):
+    plan = read_space_heat_weight_batch_plan(wildcards)
+    return [
+        str(rules.create_space_heat_weight_batch.output.partials).format(
+            shapes=wildcards.shapes, batch=batch
+        )
+        for batch in plan["batches"]
+    ]

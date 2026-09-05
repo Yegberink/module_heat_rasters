@@ -212,9 +212,9 @@ rule merge_floor_area:
         plan=building_plan_input,
         batches=floor_area_batch_inputs,
     output:
-        raster="<resources>/automatic/{shapes}/floor_area.tif",
-        residential_plot="<resources>/automatic/{shapes}/floor_area_residential.png",
-        commercial_plot="<resources>/automatic/{shapes}/floor_area_commercial.png",
+        raster="<floor_area>",
+        residential_plot="<results>/{shapes}/visualiation/floor_area_residential.png",
+        commercial_plot="<results>/{shapes}/visualiation/floor_area_commercial.png",
     log:
         "<logs>/{shapes}/merge_floor_area.log",
     conda:

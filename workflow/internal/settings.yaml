@@ -9,6 +9,7 @@ resources:
     eubucco_stats: "https://s3.eubucco.com/eubucco/v{version}/additional/region-stats.parquet"
     eubucco_buildings: "https://s3.eubucco.com/eubucco/v{version}/additional/eubucco_lat_lon.parquet"
     microsoft_index: "https://bfppub.blob.core.windows.net/$web/{release}/dataset-links.csv"
+  eurostat_building_age: "https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1/data/cens_21dwop_r3?format=TSV&compressed=true"
   eubucco_countries: [AUT, BEL, BGR, CHE, CYP, CZE, DEU, DNK, ESP, EST, FIN, FRA, GBR, GRC, HRV, HUN, IRL, ITA, LTU, LUX, LVA, MLT, NLD, NOR, POL, PRT, ROU, SVK, SVN, SWE]
 country_codes:
   ALB: AL

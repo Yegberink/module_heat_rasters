@@ -43,7 +43,17 @@ region_ids = sorted(
 selected = pa.array(region_ids)
 transformer = Transformer.from_crs(4326, regions.crs, always_xy=True)
 source = Path(snakemake.input.downloads) / "eubucco_lat_lon.parquet"
-columns = ["id", "region_id", "type", "subtype", "floors", "footprint_area", "lon", "lat"]
+columns = [
+    "id",
+    "region_id",
+    "type",
+    "subtype",
+    "floors",
+    "footprint_area",
+    "height",
+    "lon",
+    "lat",
+]
 for index, batch in enumerate(
     pq.ParquetFile(source).iter_batches(batch_size=250_000, columns=columns)
 ):

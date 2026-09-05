@@ -125,7 +125,7 @@ def population_sums(population, polygons: gpd.GeoDataFrame) -> pd.Series:
     return pd.Series(values, index=polygons.index, dtype=float)
 
 
-def output_profile(bounds, settings, crs="EPSG:3035"):
+def output_profile(bounds, settings, crs="EPSG:3035", count=3):
     """Return an equal-area raster profile aligned to the hectare grid.
 
     Bounds are rounded outward to exact multiples of ``cell_size_m``. Every
@@ -141,7 +141,7 @@ def output_profile(bounds, settings, crs="EPSG:3035"):
         "driver": "GTiff",
         "width": round((right - left) / cell),
         "height": round((top - bottom) / cell),
-        "count": 3,
+        "count": count,
         "dtype": settings["dtype"],
         "crs": crs,
         "transform": Affine(cell, 0, left, 0, -cell, top),

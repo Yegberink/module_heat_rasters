@@ -39,6 +39,28 @@ floor_area:
     GE9: 10
   floor_area_per_room_m2: 20
 
+# Assumptions for the support raster used to allocate national household
+# space-heating demand. The Eurostat source combines 1981--2000; its configured
+# 1.125 multiplier is the equal-decade blend of 1.25 (through 1990) and 1.0
+# (1991--2000). No age or height values are inferred from other countries.
+space_heat_weight:
+  nuts3_batches: 128
+  surface_volume:
+    elasticity: 0.33
+    method: equivalent_square
+  age:
+    enabled: true
+    dataset: cens_21dwop_r3
+    multipliers:
+      before_1991: 1.25
+      "1991_2000": 1.0
+      after_2000: 0.8
+    cutoff_spanning_bin_multipliers:
+      Y1981-2000: 1.125
+  hdd:
+    enabled: false
+    elasticity: 0.5
+
 # Use the mean floor area per person of these countries when source data is
 # missing. Multiple reference countries are averaged with equal weight.
 data_proxies:

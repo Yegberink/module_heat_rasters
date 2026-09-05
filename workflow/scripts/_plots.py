@@ -21,8 +21,9 @@ def plot_floor_area(
     output_path: str,
     chunk_size: int,
     max_size: int,
+    colorbar_label: str = "Floor area (m²/ha)",
 ) -> None:
-    """Plot a Dask-coarsened floor-area band without loading the full raster."""
+    """Plot a Dask-coarsened density band without loading the full raster."""
     opened: Any = rioxarray.open_rasterio(
         raster_path, chunks={"x": chunk_size, "y": chunk_size}
     )
@@ -49,7 +50,7 @@ def plot_floor_area(
         values, extent=extent, cmap="magma", norm=PowerNorm(0.35, vmin=0, vmax=vmax)
     )
     axis.set(title=title, xlabel="Easting (m)", ylabel="Northing (m)")
-    figure.colorbar(image, ax=axis, label="Floor area (m²/ha)")
+    figure.colorbar(image, ax=axis, label=colorbar_label)
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     figure.savefig(output_path, dpi=200)
     plt.close(figure)

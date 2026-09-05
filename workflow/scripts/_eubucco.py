@@ -24,6 +24,7 @@ EUBUCCO_COLUMNS = [
     "subtype",
     "floors",
     "footprint_area_m2",
+    "height_m",
     "x",
     "y",
 ]
@@ -35,6 +36,7 @@ EUBUCCO_SCHEMA = pa.schema(
         ("subtype", pa.string()),
         ("floors", pa.float64()),
         ("footprint_area_m2", pa.float64()),
+        ("height_m", pa.float64()),
         ("x", pa.float64()),
         ("y", pa.float64()),
     ]
@@ -73,6 +75,7 @@ def canonical_from_lightweight(batch: pa.RecordBatch, transformer) -> pa.Table:
             pc.cast(batch.column("subtype"), pa.string()),
             pc.cast(batch.column("floors"), pa.float64()),
             pc.cast(batch.column("footprint_area"), pa.float64()),
+            pc.cast(batch.column("height"), pa.float64()),
             pa.array(x),
             pa.array(y),
         ],

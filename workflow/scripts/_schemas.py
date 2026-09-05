@@ -1,4 +1,4 @@
-"""Executable schemas for all floor-area inputs and outputs.
+"""Executable schemas for all floor-area and heat-support inputs and outputs.
 
 Each reader checks structural, spatial, and numeric invariants before returning
 data to a calculation. Output validators additionally enforce band ordering,
@@ -24,6 +24,7 @@ from _eubucco import EUBUCCO_COLUMNS, EUBUCCO_SCHEMA
 from _microsoft import MICROSOFT_COLUMNS, MICROSOFT_SCHEMA
 
 FLOOR_AREA_BANDS = ("residential", "commercial", "total")
+SPACE_HEAT_WEIGHT_BANDS = ("residential_space_heat_weight",)
 
 
 def validate_shape_source(path: str | Path) -> gpd.GeoDataFrame:
@@ -96,6 +97,16 @@ def validate_census(path: str | Path, year: int) -> pd.DataFrame:
     assert data.columns[0].endswith("\\TIME_PERIOD")
     dimensions = data.columns[0].removesuffix("\\TIME_PERIOD").split(",")
     assert dimensions == ["freq", "area", "n_room", "building", "unit", "geo"]
+    assert sum(column.strip() == str(year) for column in data.columns) == 1
+    return data
+
+
+def validate_building_age_census(path: str | Path, year: int) -> pd.DataFrame:
+    """Validate the Eurostat NUTS-3 dwelling construction-period table."""
+    data = pd.read_csv(path, sep="\t", dtype=str)
+    assert data.columns[0].endswith("\\TIME_PERIOD")
+    dimensions = data.columns[0].removesuffix("\\TIME_PERIOD").split(",")
+    assert dimensions == ["freq", "housing", "y_const", "unit", "geo"]
     assert sum(column.strip() == str(year) for column in data.columns) == 1
     return data
 
@@ -276,6 +287,85 @@ def validate_floor_area_totals(path: str | Path, nuts3_ids=None) -> pd.DataFrame
     return totals
 
 
+def validate_nuts3_building_age(path: str | Path, nuts3_ids=None) -> pd.DataFrame:
+    """Validate centred NUTS-3 construction-age corrections."""
+    age = pd.read_parquet(path)
+    assert list(age.columns) == [
+        "region_id",
+        "country_id",
+        "age_factor_raw",
+        "age_factor",
+        "age_data_available",
+        "known_dwellings",
+        "total_dwellings",
+        "coverage_fraction",
+    ]
+    assert age.region_id.is_unique
+    if nuts3_ids is not None:
+        assert set(age.region_id) == set(nuts3_ids)
+    assert age.country_id.str.fullmatch(r"[A-Z]{3}").all()
+    assert age.age_data_available.dtype == bool
+    assert np.isfinite(
+        age[["age_factor", "known_dwellings", "total_dwellings", "coverage_fraction"]]
+    ).all().all()
+    assert age.age_factor.gt(0).all()
+    assert age[["known_dwellings", "total_dwellings", "coverage_fraction"]].ge(0).all().all()
+    assert age.age_factor_raw.notna().eq(age.age_data_available).all()
+    assert age.loc[~age.age_data_available, "age_factor"].eq(1).all()
+    return age
+
+
+def validate_sv_statistics(path: str | Path, country_ids=None) -> pd.DataFrame:
+    """Validate country compactness normalisers."""
+    statistics = pd.read_parquet(path)
+    assert list(statistics.columns) == [
+        "country_id",
+        "valid_floor_area_m2",
+        "weighted_sv_power",
+        "sv_power_reference",
+    ]
+    assert statistics.country_id.is_unique
+    if country_ids is not None:
+        assert set(statistics.country_id) == set(country_ids)
+    assert statistics.country_id.str.fullmatch(r"[A-Z]{3}").all()
+    assert np.isfinite(statistics.iloc[:, 1:]).all().all()
+    assert statistics[["valid_floor_area_m2", "weighted_sv_power"]].ge(0).all().all()
+    assert statistics.sv_power_reference.gt(0).all()
+    return statistics
+
+
+def validate_space_heat_diagnostics(path: str | Path, nuts3_ids=None) -> pd.DataFrame:
+    """Validate transparent regional source and correction diagnostics."""
+    diagnostics = pd.read_parquet(path)
+    assert list(diagnostics.columns) == [
+        "country_id",
+        "region_id",
+        "residential_floor_area_m2",
+        "residential_source",
+        "sv_valid_floor_area_fraction",
+        "age_data_available",
+        "age_coverage_fraction",
+        "raw_age_factor",
+        "normalised_age_factor",
+        "raw_heat_weight",
+    ]
+    assert diagnostics.region_id.is_unique
+    if nuts3_ids is not None:
+        assert set(diagnostics.region_id) == set(nuts3_ids)
+    assert diagnostics.country_id.str.fullmatch(r"[A-Z]{3}").all()
+    assert diagnostics.residential_source.isin(["eubucco", "microsoft"]).all()
+    finite = diagnostics.drop(columns=["raw_age_factor"])
+    numeric = finite.select_dtypes(include=[np.number])
+    assert np.isfinite(numeric).all().all()
+    assert numeric.ge(0).all().all()
+    assert (
+        diagnostics.sv_valid_floor_area_fraction.le(1)
+        | np.isclose(diagnostics.sv_valid_floor_area_fraction, 1)
+    ).all()
+    assert diagnostics.raw_age_factor.notna().eq(diagnostics.age_data_available).all()
+    return diagnostics
+
+
 def validate_population_raster(path: str | Path, resolution: int) -> None:
     """Validate a GHSL GHS-POP Mollweide raster."""
     with rasterio.open(path) as raster:
@@ -307,6 +397,22 @@ def validate_density_raster(
             assert np.isfinite(values).all()
             assert (values >= 0).all()
             assert np.allclose(values[2], values[0] + values[1])
+
+
+def validate_space_heat_weight_raster(path: str | Path, schema: dict[str, Any]) -> None:
+    """Validate a shape-scoped single-band non-negative heat-support raster."""
+    with rasterio.open(path) as raster:
+        assert raster.crs.to_string() in {"EPSG:3035", "ESRI:54009"}
+        assert abs(raster.transform.a) == abs(raster.transform.e) == schema["cell_size_m"]
+        assert raster.count == 1
+        assert raster.dtypes == (schema["dtype"],)
+        assert raster.nodatavals == (schema["nodata"],)
+        assert raster.descriptions == SPACE_HEAT_WEIGHT_BANDS
+        assert raster.units == ("weighted_m2/ha",)
+        for _, window in raster.block_windows(1):
+            values = raster.read(1, window=window)
+            assert np.isfinite(values).all()
+            assert (values >= 0).all()
 
 
 def validate_plot(path: str | Path) -> None:

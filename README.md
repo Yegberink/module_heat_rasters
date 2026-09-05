@@ -1,6 +1,7 @@
-# Floor-area rasters
+# Floor-area and residential space-heating support rasters
 
-This module develops floor-area rasters for subsequent spatial energy-system analysis.
+This module develops floor-area rasters and a separate support raster for
+spatial energy-system analysis.
 
 <!-- Place an attractive image of module outputs here -->
 <p align="center">
@@ -25,6 +26,25 @@ Data processing steps:
 1. Reconstruct NUTS-3 residential floor-area totals from Eurostat where available.
 2. Allocate totals with EUBUCCO buildings, falling back by complete region and sector to only the required Microsoft level-nine footprint tiles.
 3. Estimate totals outside Eurostat coverage from configurable reference-country or explicit dwelling/floor assumptions.
+4. Reconstruct the residential floor support independently, apply
+   country-centred building compactness and NUTS-3 construction-age corrections,
+   and rasterise the result to the same 100 m grid.
+
+The outputs have deliberately different meanings:
+
+- `floor_area.tif` contains reconstructed physical residential and
+  commercial/public gross floor area in `m2/ha`.
+- `residential_space_heat_weight.tif` contains area-like spatial support in
+  `weighted_m2/ha`. It is not heat demand in MWh and is not normalised within
+  NUTS-3. A downstream workflow must normalise it over all shapes or cells in a
+  country before multiplying it by the authoritative national household
+  space-heating total.
+
+EUBUCCO's lightweight table has no footprint perimeter, so compactness uses the
+configured `equivalent_square` approximation and records that method in raster
+metadata. Missing/invalid height and missing observed Eurostat age data are
+neutral corrections of one. Microsoft fallback regions receive no compactness
+correction. HDD is represented in the configuration and helper API but disabled.
 
 ## Configuration
 <!-- Please describe how to configure this module below -->
@@ -35,6 +55,10 @@ Please consult the configuration [README](./config/README.md) and the [configura
 <!-- Please describe input / output file placement below -->
 
 Please consult the [interface file](./INTERFACE.yaml) for more information.
+
+Final TIFFs are saved in `results/{shapes}/rasters/` and diagnostic plots in
+`results/{shapes}/visualiation/`. For `working_EU`, the floor-area result is
+`results/working_EU/rasters/floor_area.tif`.
 
 ## Development
 <!-- Please do not modify this templated section -->
@@ -85,6 +109,7 @@ This module is based on the following research and datasets:
 * Müller, A., Hummel, M., Kranzl, L., Fallahnejad, M., & Büchele, R. (2019). [Open Source Data for Gross Floor Area and Heat Demand Density on the Hectare Level for EU 28](https://doi.org/10.3390/en12244789). *Energies*, 12(24), 4789.
 * [EUBUCCO v0.2](https://docs.eubucco.com/v0.2/).
 * [Microsoft Global ML Building Footprints](https://github.com/microsoft/GlobalMLBuildingFootprints), CDLA Permissive 2.0.
+* Eurostat Census 2021 [`cens_21dwop_r3`](https://ec.europa.eu/eurostat/databrowser/view/cens_21dwop_r3/default/table), conventional dwellings by construction period and NUTS-3 region.
 
 ## Contributors ✨
 

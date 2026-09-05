@@ -10,6 +10,8 @@ min_version("9.19")
 # This allows users to re-wire how the module is used in their workflow with ease.
 pathvars:
     shapes="<resources>/user/{shapes}/shapes.parquet",
+    floor_area="<results>/{shapes}/rasters/floor_area.tif",
+    residential_space_heat_weight="<results>/{shapes}/rasters/residential_space_heat_weight.tif",
 
 
 # Load the example configuration. This will be overridden by users.
@@ -29,6 +31,7 @@ include: "rules/_utils.smk"
 include: "rules/automatic.smk"
 include: "rules/prepare.smk"
 include: "rules/floor_area.smk"
+include: "rules/space_heat_weight.smk"
 
 
 # Add additional files to be delivered alongside the workflow here.
@@ -41,6 +44,7 @@ workflow.source_path("scripts/_eubucco.py")
 workflow.source_path("scripts/_floor_area.py")
 workflow.source_path("scripts/_microsoft.py")
 workflow.source_path("scripts/_regions.py")
+workflow.source_path("scripts/_space_heat_weight.py")
 
 
 rule all:

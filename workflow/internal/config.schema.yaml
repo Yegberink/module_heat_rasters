@@ -2,7 +2,7 @@ $schema: "https://json-schema.org/draft/2020-12/schema"
 description: "Schema for floor-area raster settings."
 type: object
 additionalProperties: false
-required: [floor_area, data_proxies, raster]
+required: [floor_area, space_heat_weight, data_proxies, raster]
 properties:
   floor_area:
     type: object
@@ -48,6 +48,47 @@ properties:
         minProperties: 9
         maxProperties: 9
       floor_area_per_room_m2: {type: number, exclusiveMinimum: 0}
+  space_heat_weight:
+    type: object
+    additionalProperties: false
+    required: [nuts3_batches, surface_volume, age, hdd]
+    properties:
+      nuts3_batches: {type: integer, minimum: 1}
+      surface_volume:
+        type: object
+        additionalProperties: false
+        required: [elasticity, method]
+        properties:
+          elasticity: {type: number, minimum: 0}
+          method: {type: string, enum: [equivalent_square, footprint_perimeter]}
+      age:
+        type: object
+        additionalProperties: false
+        required: [enabled, dataset, multipliers, cutoff_spanning_bin_multipliers]
+        properties:
+          enabled: {type: boolean}
+          dataset: {type: string, const: cens_21dwop_r3}
+          multipliers:
+            type: object
+            additionalProperties: false
+            required: [before_1991, "1991_2000", after_2000]
+            properties:
+              before_1991: {type: number, exclusiveMinimum: 0}
+              "1991_2000": {type: number, exclusiveMinimum: 0}
+              after_2000: {type: number, exclusiveMinimum: 0}
+          cutoff_spanning_bin_multipliers:
+            type: object
+            additionalProperties: false
+            required: [Y1981-2000]
+            properties:
+              Y1981-2000: {type: number, exclusiveMinimum: 0}
+      hdd:
+        type: object
+        additionalProperties: false
+        required: [enabled, elasticity]
+        properties:
+          enabled: {type: boolean, const: false}
+          elasticity: {type: number, minimum: 0}
   data_proxies:
     type: object
     additionalProperties: false

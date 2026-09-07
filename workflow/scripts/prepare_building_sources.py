@@ -14,6 +14,7 @@ from _eubucco import EUBUCCO_SCHEMA, map_regions, needs_eubucco_metadata
 from _microsoft import MICROSOFT_SCHEMA, intersecting_quadkeys
 from _schemas import (
     validate_eubucco_nuts,
+    validate_eubucco_partition,
     validate_eubucco_plan,
     validate_eubucco_stats,
     validate_microsoft_index,
@@ -26,11 +27,11 @@ if TYPE_CHECKING:
 
 sys.stderr = open(snakemake.log[0], "w")
 regions = validate_nuts3(snakemake.input.regions)
+links = validate_microsoft_index(snakemake.input.microsoft_index)
+available_quadkeys = set(links.QuadKey)
 target_countries = set(regions.country_id)
 use_eubucco = needs_eubucco_metadata(
-    target_countries,
-    snakemake.params.microsoft,
-    snakemake.params.eubucco_countries,
+    target_countries, snakemake.params.microsoft, snakemake.params.eubucco_countries
 )
 metadata = [snakemake.output.eubucco_nuts, snakemake.output.eubucco_stats]
 
@@ -49,7 +50,7 @@ if use_eubucco:
                 "3",
                 "--output",
                 output,
-                url.format(version=snakemake.params.eubucco_version),
+                url.format(version=snakemake.params.eubucco["version"]),
             ],
             check=True,
         )
@@ -85,7 +86,6 @@ else:
 
 stats = stats.set_index("region_id")
 region_plan = {}
-needs_microsoft = False
 for row in regions.to_crs(4326).itertuples():
     eubucco = mapping[row.region_id]
     selected = stats.reindex(eubucco["region_ids"])
@@ -98,40 +98,22 @@ for row in regions.to_crs(4326).itertuples():
     microsoft = not residential or not commercial
     if microsoft:
         assert row.country_id in snakemake.params.microsoft["countries"]
-    needs_microsoft |= microsoft
     region_plan[row.region_id] = {
         "eubucco_region_ids": eubucco["region_ids"],
         "eubucco_nuts2_ids": eubucco["nuts2_ids"],
         "residential_source": "eubucco" if residential else "microsoft",
         "commercial_source": "eubucco" if commercial else "microsoft",
-        "microsoft_quadkeys": intersecting_quadkeys(row.geometry) if microsoft else [],
+        "microsoft_quadkeys": sorted(
+            set(intersecting_quadkeys(row.geometry)) & available_quadkeys
+        )
+        if microsoft
+        else [],
     }
 
-Path(snakemake.output.microsoft_index).parent.mkdir(parents=True, exist_ok=True)
-if needs_microsoft:
-    subprocess.run(
-        [
-            "curl",
-            "-fL",
-            "--retry",
-            "3",
-            "--output",
-            snakemake.output.microsoft_index,
-            snakemake.params.sources["microsoft_index"].format(
-                release=snakemake.params.microsoft["release"]
-            ),
-        ],
-        check=True,
-    )
-else:
-    pd.DataFrame(columns=["Location", "QuadKey", "Url"]).to_csv(
-        snakemake.output.microsoft_index, index=False
-    )
-validate_microsoft_index(snakemake.output.microsoft_index)
-
 plan = {
-    "schema_version": 1,
-    "eubucco_version": snakemake.params.eubucco_version,
+    "schema_version": 2,
+    "eubucco_version": snakemake.params.eubucco["version"],
+    "eubucco_source": snakemake.params.eubucco["source"],
     "microsoft_release": snakemake.params.microsoft["release"],
     "crs": regions.crs.to_string(),
     "regions": region_plan,
@@ -139,7 +121,12 @@ plan = {
 Path(snakemake.output.manifest).parent.mkdir(parents=True, exist_ok=True)
 with open(snakemake.output.manifest, "w") as stream:
     json.dump(plan, stream, indent=2)
-pq.write_table(pa.Table.from_batches([], schema=EUBUCCO_SCHEMA), snakemake.output.empty_eubucco)
-pq.write_table(pa.Table.from_batches([], schema=MICROSOFT_SCHEMA), snakemake.output.empty_microsoft)
+pq.write_table(
+    pa.Table.from_batches([], schema=EUBUCCO_SCHEMA), snakemake.output.empty_eubucco
+)
+pq.write_table(
+    pa.Table.from_batches([], schema=MICROSOFT_SCHEMA), snakemake.output.empty_microsoft
+)
+validate_eubucco_partition(snakemake.output.empty_eubucco)
 validate_microsoft_partition(snakemake.output.empty_microsoft)
 validate_eubucco_plan(snakemake.output.manifest)

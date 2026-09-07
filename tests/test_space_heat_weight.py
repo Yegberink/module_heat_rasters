@@ -5,11 +5,12 @@ from pathlib import Path
 
 import numpy as np
 import pyarrow as pa
+import shapely
 import yaml
 
 sys.path.insert(0, str(Path(__file__).parents[1] / "workflow" / "scripts"))
 
-from _eubucco import canonical_from_lightweight  # noqa: E402
+from _eubucco import canonical_from_full, canonical_from_lightweight  # noqa: E402
 from _space_heat_weight import (  # noqa: E402
     age_factor_from_counts,
     normalised_factor,
@@ -24,10 +25,12 @@ def test_configured_hotmaps_parameters():
     """Default compactness elasticity and age factors remain explicit."""
     config = yaml.safe_load(
         (Path(__file__).parents[1] / "config" / "config.yaml").read_text()
-    )["space_heat_weight"]
+    )
+    assert config["floor_area"]["eubucco"]["source"] == "full"
+    config = config["space_heat_weight"]
     assert config["surface_volume"] == {
         "elasticity": 0.33,
-        "method": "equivalent_square",
+        "method": "footprint_perimeter",
     }
     assert config["age"]["multipliers"] == {
         "before_1991": 1.25,
@@ -57,6 +60,29 @@ def test_canonical_eubucco_retains_height():
     )
     canonical = canonical_from_lightweight(source, IdentityTransformer())
     assert canonical.column("height_m").to_pylist() == [12.5]
+    assert canonical.column("footprint_perimeter_m").null_count == 1
+
+
+def test_canonical_full_eubucco_derives_shape_measures():
+    """Full footprints become canonical centroids, areas, and perimeters."""
+    class IdentityTransformer:
+        def transform(self, x, y):
+            return x, y
+
+    source = pa.RecordBatch.from_pydict(
+        {
+            "id": ["building"],
+            "region_id": ["NL001"],
+            "type": ["residential"],
+            "subtype": ["residential"],
+            "floors": [3.0],
+            "height": [12.5],
+            "geometry": [shapely.to_wkb(shapely.box(0, 0, 10, 10))],
+        }
+    )
+    canonical = canonical_from_full(source, IdentityTransformer())
+    assert canonical.column("footprint_area_m2").to_pylist() == [100.0]
+    assert canonical.column("footprint_perimeter_m").to_pylist() == [40.0]
 
 
 def test_surface_to_volume_ratio():

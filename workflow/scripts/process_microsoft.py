@@ -63,7 +63,7 @@ def write_batch(source, batch_number, ids, geometries):
     validate_microsoft_partition(path)
 
 
-for source in sorted(Path(snakemake.input.downloads).glob("*.csv.gz")):
+for source in sorted(Path(source) for source in snakemake.input.downloads):
     ids, geometries = [], []
     with gzip.open(source, "rt") as stream:
         for line_number, line in enumerate(stream):

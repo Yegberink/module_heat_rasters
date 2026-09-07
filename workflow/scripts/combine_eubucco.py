@@ -13,18 +13,19 @@ from typing import TYPE_CHECKING, Any
 import duckdb
 import pyarrow as pa
 import pyarrow.parquet as pq
-from _eubucco import EUBUCCO_COLUMNS, EUBUCCO_SCHEMA
+from _eubucco import EUBUCCO_COLUMNS, EUBUCCO_SCHEMA, read_plan
 from _schemas import validate_eubucco_partition
 
 if TYPE_CHECKING:
     snakemake: Any
 
 sys.stderr = open(snakemake.log[0], "w")
+source_type = read_plan(snakemake.input.plan)["eubucco_source"]
 
 # Validate every intermediate partition before exposing them as one stable table.
 partitions = sorted(Path(snakemake.input.partitions).glob("*.parquet"))
 for partition in partitions:
-    validate_eubucco_partition(partition)
+    validate_eubucco_partition(partition, source_type)
 Path(snakemake.output.table).parent.mkdir(parents=True, exist_ok=True)
 if partitions:
     # DuckDB performs the external sort without loading all buildings into memory.
@@ -42,4 +43,4 @@ if partitions:
 else:
     # Preserve the canonical schema when the requested area contains no buildings.
     pq.write_table(pa.Table.from_batches([], schema=EUBUCCO_SCHEMA), snakemake.output.table)
-validate_eubucco_partition(snakemake.output.table)
+validate_eubucco_partition(snakemake.output.table, source_type)

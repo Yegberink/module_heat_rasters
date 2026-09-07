@@ -50,6 +50,7 @@ with rasterio.open(snakemake.output.raster, "w+", **profile) as output:
         {
             "census_reference_year": settings["reference_year"],
             "eubucco_version": settings["eubucco"]["version"],
+            "eubucco_source": settings["eubucco"]["source"],
             "microsoft_release": plan["microsoft_release"],
             "ghsl_epoch": settings["ghsl_epoch"],
             "building_assignment": settings["eubucco"]["assignment"],

@@ -3,9 +3,9 @@
 The support multiplies corrected gross residential floor area by independently
 centred compactness and construction-age factors.
 
-The equivalent-square compactness method is an explicit approximation because
-the EUBUCCO v0.2 lightweight table contains height and area, but no footprint
-perimeter. Hotmaps elasticities and age multipliers follow Müller et al. (2019).
+The equivalent-square method supports lightweight EUBUCCO, while full EUBUCCO
+provides observed footprint perimeter. Hotmaps elasticities and age multipliers
+follow Müller et al. (2019).
 """
 
 from collections.abc import Mapping

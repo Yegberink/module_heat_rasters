@@ -27,8 +27,6 @@ if TYPE_CHECKING:
 
 sys.stderr = open(snakemake.log[0], "w")
 settings = snakemake.params.settings
-if settings["surface_volume"]["method"] != "equivalent_square":
-    raise ValueError("The lightweight EUBUCCO v0.2 table has no footprint perimeter")
 regions = validate_nuts3(snakemake.input.nuts3).set_index("region_id")
 totals = validate_floor_area_totals(snakemake.input.floor_area, regions.index).set_index(
     "region_id"
@@ -59,6 +57,7 @@ for region_id, region in regions.iterrows():
     ratio = surface_to_volume_ratio(
         buildings.footprint_area_m2,
         buildings.height_m,
+        buildings.footprint_perimeter_m,
         method=settings["surface_volume"]["method"],
     )
     power = surface_volume_power(ratio, settings["surface_volume"]["elasticity"])

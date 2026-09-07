@@ -1,8 +1,7 @@
 """Shared EUBUCCO region-mapping and canonical-table operations.
 
 This module maps the legacy NUTS 2016 regions used by EUBUCCO to the workflow's
-current NUTS-3 geography and converts the simplified Europe-wide table to the
-local schema used by downstream floor-area calculations.
+current NUTS-3 geography and converts either distribution to the local table.
 
 Sources:
     EUBUCCO data and schema: https://docs.eubucco.com/v0.2/
@@ -16,6 +15,7 @@ import geopandas as gpd
 import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.dataset as ds
+import shapely
 
 EUBUCCO_COLUMNS = [
     "id",
@@ -24,6 +24,7 @@ EUBUCCO_COLUMNS = [
     "subtype",
     "floors",
     "footprint_area_m2",
+    "footprint_perimeter_m",
     "height_m",
     "x",
     "y",
@@ -36,6 +37,7 @@ EUBUCCO_SCHEMA = pa.schema(
         ("subtype", pa.string()),
         ("floors", pa.float64()),
         ("footprint_area_m2", pa.float64()),
+        ("footprint_perimeter_m", pa.float64()),
         ("height_m", pa.float64()),
         ("x", pa.float64()),
         ("y", pa.float64()),
@@ -75,6 +77,31 @@ def canonical_from_lightweight(batch: pa.RecordBatch, transformer) -> pa.Table:
             pc.cast(batch.column("subtype"), pa.string()),
             pc.cast(batch.column("floors"), pa.float64()),
             pc.cast(batch.column("footprint_area"), pa.float64()),
+            pa.nulls(batch.num_rows, pa.float64()),
+            pc.cast(batch.column("height"), pa.float64()),
+            pa.array(x),
+            pa.array(y),
+        ],
+        schema=EUBUCCO_SCHEMA,
+    )
+
+
+def canonical_from_full(batch: pa.RecordBatch, transformer) -> pa.Table:
+    """Reduce EPSG:3035 footprints to metric shape measures and centroids."""
+    geometry = shapely.from_wkb(
+        pc.cast(batch.column("geometry"), pa.binary()).to_numpy(zero_copy_only=False)
+    )
+    centroids = shapely.centroid(geometry)
+    x, y = transformer.transform(shapely.get_x(centroids), shapely.get_y(centroids))
+    return pa.Table.from_arrays(
+        [
+            pc.cast(batch.column("id"), pa.string()),
+            pc.cast(batch.column("region_id"), pa.string()),
+            pc.cast(batch.column("type"), pa.string()),
+            pc.cast(batch.column("subtype"), pa.string()),
+            pc.cast(batch.column("floors"), pa.float64()),
+            pa.array(shapely.area(geometry)),
+            pa.array(shapely.length(geometry)),
             pc.cast(batch.column("height"), pa.float64()),
             pa.array(x),
             pa.array(y),

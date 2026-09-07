@@ -152,12 +152,14 @@ def validate_eubucco_plan(path: str | Path) -> dict:
     assert list(plan) == [
         "schema_version",
         "eubucco_version",
+        "eubucco_source",
         "microsoft_release",
         "crs",
         "regions",
     ]
-    assert plan["schema_version"] == 1
+    assert plan["schema_version"] == 2
     assert plan["eubucco_version"] == "0.2"
+    assert plan["eubucco_source"] in {"lightweight", "full"}
     assert plan["crs"] in {"EPSG:3035", "ESRI:54009"}
     assert plan["regions"]
     for region, mapping in plan["regions"].items():
@@ -241,7 +243,26 @@ def validate_floor_area_batches(path: str | Path, nuts3_ids=None) -> dict:
     return plan
 
 
-def validate_eubucco_partition(path: str | Path) -> None:
+def validate_eubucco_source(path: str | Path, source: str) -> None:
+    """Validate fields consumed from an EUBUCCO distribution."""
+    schema = pq.read_schema(path)
+    common = {"id", "region_id", "type", "subtype", "floors", "height"}
+    required = (
+        common | {"footprint_area", "lon", "lat"}
+        if source == "lightweight"
+        else common | {"geometry"}
+    )
+    assert required <= set(schema.names)
+    if source == "full":
+        geo = json.loads(schema.metadata[b"geo"])
+        assert geo["primary_column"] == "geometry"
+        assert geo["columns"]["geometry"]["crs"]["id"] == {
+            "authority": "EPSG",
+            "code": 3035,
+        }
+
+
+def validate_eubucco_partition(path: str | Path, source=None) -> None:
     """Validate one canonical local EUBUCCO NUTS-2 partition."""
     schema = pq.read_schema(path)
     assert schema.names == EUBUCCO_COLUMNS
@@ -254,6 +275,8 @@ def validate_eubucco_partition(path: str | Path) -> None:
                coalesce(bool_and(regexp_full_match(region_id, '[A-Z0-9]{5}')), true),
                coalesce(bool_and(isfinite(floors) AND floors > 0), true),
                coalesce(bool_and(isfinite(footprint_area_m2) AND footprint_area_m2 > 0), true),
+               coalesce(bool_and(footprint_perimeter_m IS NULL OR
+                                 (isfinite(footprint_perimeter_m) AND footprint_perimeter_m > 0)), true),
                coalesce(bool_and(isfinite(x) AND isfinite(y)), true)
         FROM read_parquet(?)
         """,
@@ -263,6 +286,11 @@ def validate_eubucco_partition(path: str | Path) -> None:
     )
     assert valid is not None
     assert all(valid)
+    if source == "full":
+        assert duckdb.connect().execute(
+            "SELECT count(*) = count(footprint_perimeter_m) FROM read_parquet(?)",
+            [str(path)],
+        ).fetchone() == (True,)
 
 
 def validate_floor_area_totals(path: str | Path, nuts3_ids=None) -> pd.DataFrame:

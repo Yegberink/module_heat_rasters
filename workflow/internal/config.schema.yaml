@@ -3,6 +3,21 @@ description: "Schema for floor-area raster settings."
 type: object
 additionalProperties: false
 required: [floor_area, space_heat_weight, data_proxies, raster]
+allOf:
+  - if:
+      properties:
+        space_heat_weight:
+          properties:
+            surface_volume:
+              properties:
+                method: {const: footprint_perimeter}
+    then:
+      properties:
+        floor_area:
+          properties:
+            eubucco:
+              properties:
+                source: {const: full}
 properties:
   floor_area:
     type: object
@@ -19,9 +34,10 @@ properties:
       eubucco:
         type: object
         additionalProperties: false
-        required: [version, residential_type, commercial_subtypes, assignment, floor_bin_representatives]
+        required: [version, source, residential_type, commercial_subtypes, assignment, floor_bin_representatives]
         properties:
           version: {type: string, const: "0.2"}
+          source: {type: string, enum: [lightweight, full]}
           residential_type: {type: string, const: residential}
           commercial_subtypes:
             type: array

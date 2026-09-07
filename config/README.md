@@ -20,8 +20,13 @@ representatives convert published regional bin counts into an effective mean
 without downloading the reference countries' building files.
 
 `space_heat_weight` controls the additive residential space-heating support
-workflow. `surface_volume.method: equivalent_square` is required by the current
-lightweight EUBUCCO source because it contains no footprint perimeter. The live
+workflow. `floor_area.eubucco.source: lightweight` uses the Europe-wide centroid
+table and requires `surface_volume.method: equivalent_square`. Set the source to
+`full` and the method to `footprint_perimeter` to download only the required
+NUTS-2 footprint partitions and calculate observed perimeters. EUBUCCO
+partitions and Microsoft tiles are persistent update outputs outside the
+shape-specific directories, so workflow changes never redownload existing files.
+The live
 Eurostat `cens_21dwop_r3` source combines 1981--2000, so
 `age.cutoff_spanning_bin_multipliers.Y1981-2000` records the explicit equal-decade
 blend across the requested 1991 boundary. Missing height and age observations

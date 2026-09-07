@@ -8,6 +8,8 @@ floor_area:
   nuts3_batches: 128
   eubucco:
     version: "0.2"
+    # `full` downloads selected NUTS-2 footprints and enables observed perimeter.
+    source: full
     residential_type: residential
     commercial_subtypes: [commercial, public]
     assignment: centroid
@@ -47,7 +49,7 @@ space_heat_weight:
   nuts3_batches: 128
   surface_volume:
     elasticity: 0.33
-    method: equivalent_square
+    method: footprint_perimeter
   age:
     enabled: true
     dataset: cens_21dwop_r3

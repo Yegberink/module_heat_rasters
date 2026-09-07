@@ -4,11 +4,11 @@
 checkpoint prepare_building_sources:
     input:
         regions=rules.prepare_nuts3.output.regions,
+        microsoft_index=f"<resources>/automatic/microsoft/{config['data_proxies']['microsoft']['release']}/dataset-links.csv",
     output:
         manifest="<resources>/automatic/{shapes}/buildings/plan.json",
         eubucco_nuts="<resources>/automatic/{shapes}/eubucco/NUTS-regions-2016.parquet",
         eubucco_stats="<resources>/automatic/{shapes}/eubucco/region-stats.parquet",
-        microsoft_index="<resources>/automatic/{shapes}/microsoft/dataset-links.csv",
         empty_eubucco="<resources>/automatic/{shapes}/buildings/empty_eubucco.parquet",
         empty_microsoft="<resources>/automatic/{shapes}/buildings/empty_microsoft.parquet",
     log:
@@ -17,7 +17,7 @@ checkpoint prepare_building_sources:
         "../envs/eubucco-download.yaml"
     params:
         sources=internal["resources"]["automatic"],
-        eubucco_version=config["floor_area"]["eubucco"]["version"],
+        eubucco=config["floor_area"]["eubucco"],
         eubucco_countries=internal["resources"]["eubucco_countries"],
         microsoft=config["data_proxies"]["microsoft"],
     script:
@@ -41,20 +41,16 @@ checkpoint prepare_floor_area_batches:
 
 
 rule download_eubucco:
-    input:
-        plan=building_plan_input,
     output:
-        downloads=protected(
-            directory(
-                f"<resources>/automatic/{{shapes}}/eubucco/v{config['floor_area']['eubucco']['version']}/downloads"
-            )
+        table=update(
+            f"<resources>/automatic/eubucco/v{config['floor_area']['eubucco']['version']}/{config['floor_area']['eubucco']['source']}/downloads/{{region}}.parquet"
         ),
     log:
-        f"<logs>/{{shapes}}/eubucco/v{config['floor_area']['eubucco']['version']}/download.log",
+        f"<logs>/eubucco/v{config['floor_area']['eubucco']['version']}/{config['floor_area']['eubucco']['source']}/download_{{region}}.log",
     conda:
         "../envs/eubucco-download.yaml"
     params:
-        sources=internal["resources"]["automatic"],
+        url=eubucco_download_url,
     script:
         "../scripts/download_eubucco.py"
 
@@ -63,13 +59,13 @@ rule process_eubucco:
     input:
         plan=building_plan_input,
         regions=rules.prepare_nuts3.output.regions,
-        downloads=rules.download_eubucco.output.downloads,
+        downloads=eubucco_download_inputs,
     output:
         partitions=directory(
-            f"<resources>/automatic/{{shapes}}/eubucco/v{config['floor_area']['eubucco']['version']}/processed"
+            f"<resources>/automatic/{{shapes}}/eubucco/v{config['floor_area']['eubucco']['version']}/{config['floor_area']['eubucco']['source']}/processed"
         ),
     log:
-        f"<logs>/{{shapes}}/eubucco/v{config['floor_area']['eubucco']['version']}/process.log",
+        f"<logs>/{{shapes}}/eubucco/v{config['floor_area']['eubucco']['version']}/{config['floor_area']['eubucco']['source']}/process.log",
     conda:
         "../envs/module.yaml"
     resources:
@@ -80,11 +76,12 @@ rule process_eubucco:
 
 rule combine_eubucco:
     input:
+        plan=building_plan_input,
         partitions=rules.process_eubucco.output.partitions,
     output:
-        table=f"<resources>/automatic/{{shapes}}/eubucco/v{config['floor_area']['eubucco']['version']}/buildings.parquet",
+        table=f"<resources>/automatic/{{shapes}}/eubucco/v{config['floor_area']['eubucco']['version']}/{config['floor_area']['eubucco']['source']}/buildings.parquet",
     log:
-        f"<logs>/{{shapes}}/eubucco/v{config['floor_area']['eubucco']['version']}/combine.log",
+        f"<logs>/{{shapes}}/eubucco/v{config['floor_area']['eubucco']['version']}/{config['floor_area']['eubucco']['source']}/combine.log",
     conda:
         "../envs/module.yaml"
     resources:
@@ -93,16 +90,35 @@ rule combine_eubucco:
         "../scripts/combine_eubucco.py"
 
 
-rule download_microsoft:
-    input:
-        plan=building_plan_input,
-        index=microsoft_index_input,
+rule download_microsoft_index:
     output:
-        downloads=protected(
-            directory("<resources>/automatic/{shapes}/microsoft/downloads")
+        table=update(
+            f"<resources>/automatic/microsoft/{config['data_proxies']['microsoft']['release']}/dataset-links.csv"
         ),
     log:
-        "<logs>/{shapes}/microsoft/download.log",
+        f"<logs>/microsoft/{config['data_proxies']['microsoft']['release']}/download_index.log",
+    conda:
+        "../envs/eubucco-download.yaml"
+    params:
+        url=internal["resources"]["automatic"]["microsoft_index"].format(
+            release=config["data_proxies"]["microsoft"]["release"]
+        ),
+    shell:
+        'test -e {output.table} || curl -fL --retry 3 --create-dirs -o {output.table} "{params.url}" 2> {log}'
+
+
+rule download_microsoft:
+    input:
+        index=rules.download_microsoft_index.output.table,
+    output:
+        table=update(
+            f"<resources>/automatic/microsoft/{config['data_proxies']['microsoft']['release']}/downloads/{{quadkey}}-{{part}}.csv.gz"
+        ),
+    log:
+        f"<logs>/microsoft/{config['data_proxies']['microsoft']['release']}/download_{{quadkey}}_{{part}}.log",
+    wildcard_constraints:
+        quadkey="[0-3]{9}",
+        part="[0-9]{5}",
     conda:
         "../envs/eubucco-download.yaml"
     script:
@@ -113,7 +129,7 @@ rule process_microsoft:
     input:
         plan=building_plan_input,
         regions=rules.prepare_nuts3.output.regions,
-        downloads=rules.download_microsoft.output.downloads,
+        downloads=microsoft_download_inputs,
     output:
         partitions=directory("<resources>/automatic/{shapes}/microsoft/processed"),
     log:

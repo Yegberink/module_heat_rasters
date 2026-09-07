@@ -13,16 +13,75 @@ def eubucco_stats_input(wildcards):
     return building_source_outputs(wildcards).eubucco_stats
 
 
-def microsoft_index_input(wildcards):
-    return building_source_outputs(wildcards).microsoft_index
+def read_building_plan(wildcards):
+    import json
+
+    path = building_source_outputs(wildcards).manifest
+    with open(path) as stream:
+        return json.load(stream)
+
+
+def eubucco_download_inputs(wildcards):
+    plan = read_building_plan(wildcards)
+    regions = (
+        ["eubucco_lat_lon"]
+        if plan["eubucco_source"] == "lightweight"
+        else sorted(
+            {
+                nuts2
+                for region in plan["regions"].values()
+                for nuts2 in region["eubucco_nuts2_ids"]
+                if "eubucco"
+                in {region["residential_source"], region["commercial_source"]}
+            }
+        )
+    )
+    return [
+        str(rules.download_eubucco.output.table).format(region=region)
+        for region in regions
+    ]
+
+
+def eubucco_download_url(wildcards):
+    return internal["resources"]["automatic"][
+        f"eubucco_{config['floor_area']['eubucco']['source']}"
+    ].format(
+        version=config["floor_area"]["eubucco"]["version"],
+        nuts2=wildcards.region,
+    )
+
+
+def microsoft_download_rows(wildcards):
+    import csv
+
+    plan = read_building_plan(wildcards)
+    quadkeys = {
+        key
+        for region in plan["regions"].values()
+        for key in region["microsoft_quadkeys"]
+    }
+    with open(rules.download_microsoft_index.output.table, newline="") as stream:
+        rows = [row for row in csv.DictReader(stream) if row["QuadKey"] in quadkeys]
+    return sorted(rows, key=lambda row: (row["QuadKey"], row["Url"]))
+
+
+def microsoft_download_inputs(wildcards):
+    counts = {}
+    downloads = []
+    for row in microsoft_download_rows(wildcards):
+        part = counts.get(row["QuadKey"], 0)
+        counts[row["QuadKey"]] = part + 1
+        downloads.append(
+            str(rules.download_microsoft.output.table).format(
+                quadkey=row["QuadKey"], part=f"{part:05d}"
+            )
+        )
+    return downloads
 
 
 def selected_eubucco_input(wildcards):
-    import json
-
     outputs = building_source_outputs(wildcards)
-    with open(outputs.manifest) as stream:
-        plan = json.load(stream)
+    plan = read_building_plan(wildcards)
     if any(
         region["eubucco_nuts2_ids"]
         and "eubucco" in {region["residential_source"], region["commercial_source"]}
@@ -33,11 +92,8 @@ def selected_eubucco_input(wildcards):
 
 
 def selected_microsoft_input(wildcards):
-    import json
-
     outputs = building_source_outputs(wildcards)
-    with open(outputs.manifest) as stream:
-        plan = json.load(stream)
+    plan = read_building_plan(wildcards)
     if any(region["microsoft_quadkeys"] for region in plan["regions"].values()):
         return str(rules.combine_microsoft.output.table).format(shapes=wildcards.shapes)
     return outputs.empty_microsoft

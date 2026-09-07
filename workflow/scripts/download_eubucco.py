@@ -1,4 +1,4 @@
-"""Download the pinned Europe-wide EUBUCCO building table.
+"""Download one pinned EUBUCCO building file.
 
 Transfers use a ``.part`` suffix and curl continuation so interrupted runs can
 resume safely.
@@ -12,31 +12,21 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from _eubucco import read_plan
-
 if TYPE_CHECKING:
     snakemake: Any
 
 sys.stderr = open(snakemake.log[0], "w")
-plan = read_plan(snakemake.input.plan)
-directory = Path(snakemake.output.downloads)
-directory.mkdir(parents=True, exist_ok=True)
-destination = directory / "eubucco_lat_lon.parquet"
+destination = Path(snakemake.output.table)
+if destination.exists():
+    sys.exit()
+destination.parent.mkdir(parents=True, exist_ok=True)
 partial = destination.with_suffix(".parquet.part")
 subprocess.run(
     [
-        "curl",
-        "-fL",
-        "--retry",
-        "3",
-        "--continue-at",
-        "-",
-        "--output",
-        partial,
-        snakemake.params.sources["eubucco_buildings"].format(
-            version=plan["eubucco_version"]
-        ),
+        "curl", "-fL", "--retry", "3", "--continue-at", "-",
+        "--output", partial, snakemake.params.url,
     ],
     check=True,
+    stderr=sys.stderr,
 )
 partial.replace(destination)

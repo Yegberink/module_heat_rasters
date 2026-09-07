@@ -40,11 +40,12 @@ The outputs have deliberately different meanings:
   country before multiplying it by the authoritative national household
   space-heating total.
 
-EUBUCCO's lightweight table has no footprint perimeter, so compactness uses the
-configured `equivalent_square` approximation and records that method in raster
-metadata. Missing/invalid height and missing observed Eurostat age data are
-neutral corrections of one. Microsoft fallback regions receive no compactness
-correction.
+The configurable lightweight EUBUCCO source uses the `equivalent_square`
+compactness approximation. The full source downloads required NUTS-2 footprint
+partitions and supports observed `footprint_perimeter`; the selected method is
+recorded in raster metadata. Missing/invalid height and missing observed
+Eurostat age data are neutral corrections of one. Microsoft fallback regions
+receive no compactness correction.
 
 ## Configuration
 <!-- Please describe how to configure this module below -->

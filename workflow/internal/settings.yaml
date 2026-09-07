@@ -7,7 +7,8 @@ resources:
     ghsl_stem: "GHS_POP_E{epoch}_GLOBE_R2023A_54009_{resolution}"
     eubucco_nuts: "https://s3.eubucco.com/eubucco/v{version}/additional/NUTS-regions-2016.parquet"
     eubucco_stats: "https://s3.eubucco.com/eubucco/v{version}/additional/region-stats.parquet"
-    eubucco_buildings: "https://s3.eubucco.com/eubucco/v{version}/additional/eubucco_lat_lon.parquet"
+    eubucco_lightweight: "https://s3.eubucco.com/eubucco/v{version}/additional/eubucco_lat_lon.parquet"
+    eubucco_full: "https://s3.eubucco.com/eubucco/v{version}/buildings/parquet/nuts_id={nuts2}/{nuts2}.parquet"
     microsoft_index: "https://bfppub.blob.core.windows.net/$web/{release}/dataset-links.csv"
   eurostat_building_age: "https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1/data/cens_21dwop_r3?format=TSV&compressed=true"
   eubucco_countries: [AUT, BEL, BGR, CHE, CYP, CZE, DEU, DNK, ESP, EST, FIN, FRA, GBR, GRC, HRV, HUN, IRL, ITA, LTU, LUX, LVA, MLT, NLD, NOR, POL, PRT, ROU, SVK, SVN, SWE]

@@ -95,6 +95,7 @@ for region_id, region in regions.iterrows():
         ratio = surface_to_volume_ratio(
             buildings.footprint_area_m2,
             buildings.height_m,
+            buildings.footprint_perimeter_m,
             method=settings["surface_volume"]["method"],
         )
         power = surface_volume_power(ratio, settings["surface_volume"]["elasticity"])

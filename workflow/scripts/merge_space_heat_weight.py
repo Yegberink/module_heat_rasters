@@ -49,6 +49,7 @@ with rasterio.open(snakemake.output.raster, "w+", **profile) as output:
     output.set_band_unit(1, "weighted_m2/ha")
     output.update_tags(
         method="floor_area * surface_volume * age",
+        eubucco_source=plan["eubucco_source"],
         surface_volume_elasticity=settings["surface_volume"]["elasticity"],
         surface_volume_method=settings["surface_volume"]["method"],
         age_source=f"Eurostat {settings['age']['dataset']}",

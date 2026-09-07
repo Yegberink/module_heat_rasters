@@ -114,6 +114,7 @@ for region_id, region in regions.iterrows():
             {
                 "region_id": region_id,
                 "eubucco_version": settings["eubucco"]["version"],
+                "eubucco_source": settings["eubucco"]["source"],
                 "microsoft_release": plan["microsoft_release"],
                 "residential_source": plan["regions"][region_id]["residential_source"],
                 "commercial_source": plan["regions"][region_id]["commercial_source"],

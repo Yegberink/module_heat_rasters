@@ -26,7 +26,9 @@ if TYPE_CHECKING:
     snakemake: Any
 
 sys.stderr = open(snakemake.log[0], "w")
-settings = snakemake.params.floor_area
+eurostat = snakemake.params.eurostat
+population = snakemake.params.population
+eubucco = snakemake.params.eubucco
 plan = read_plan(snakemake.input.plan)
 shapes = validate_shapes(snakemake.input.shapes).to_crs(plan["crs"])
 profile = output_profile(shapes.total_bounds, snakemake.params.raster, plan["crs"])
@@ -48,12 +50,12 @@ with rasterio.open(snakemake.output.raster, "w+", **profile) as output:
         FLOOR_AREA_BANDS,
         ("m2/ha",) * 3,
         {
-            "census_reference_year": settings["reference_year"],
-            "eubucco_version": settings["eubucco"]["version"],
-            "eubucco_source": settings["eubucco"]["source"],
+            "census_reference_year": eurostat["reference_year"],
+            "eubucco_version": eubucco["version"],
+            "eubucco_source": eubucco["source"],
             "microsoft_release": plan["microsoft_release"],
-            "ghsl_epoch": settings["ghsl_epoch"],
-            "building_assignment": settings["eubucco"]["assignment"],
+            "ghsl_epoch": population["epoch"],
+            "building_assignment": eubucco["assignment"],
         },
     )
 validate_density_raster(

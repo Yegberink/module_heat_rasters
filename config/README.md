@@ -7,20 +7,16 @@ We recommend consulting the following before using this module:
 This data module is part of the [Modelblocks](https://www.modelblocks.org/) project.
 Please consult the [Modelblocks documentation](https://modelblocks.readthedocs.io/) for more details.
 
-`data_proxies.microsoft.countries` is keyed by the target ISO3 country. Each
-country independently selects a `floor_area` method and a `sector_split` method.
-`reference_countries` branches require only ISO3 references; `user_specified`
-branches require only the metrics belonging to the selected estimator. The
-example configuration documents both forms. Population is used to estimate
-dwelling counts for `area_per_dwelling`, but Microsoft footprints—not
-population—always provide the fallback spatial weights.
-
-When `mean_floors` uses reference countries, the configured EUBUCCO floor-bin
-representatives convert published regional bin counts into an effective mean
-without downloading the reference countries' building files.
+`data_proxies.method` selects one method shared by all proxied countries.
+`data_proxies.countries` maps each target ISO3 country to one or more reference
+countries, averaged with equal weight. With `mean_floors`, EUBUCCO floor bins
+provide effective storeys and sector shares, while processed Eurostat totals and
+GHS-POP provide residential floor area per inhabitant. Microsoft footprints
+preserve the target country's building pattern and are scaled at country level
+to that reference-derived residential total.
 
 `space_heat_weight` controls the additive residential space-heating support
-workflow. `floor_area.eubucco.source: lightweight` uses the Europe-wide centroid
+workflow. `buildings_eubucco.source: lightweight` uses the Europe-wide centroid
 table and requires `surface_volume.method: equivalent_square`. Set the source to
 `full` and the method to `footprint_perimeter` to download only the required
 NUTS-2 footprint partitions and calculate observed perimeters. EUBUCCO

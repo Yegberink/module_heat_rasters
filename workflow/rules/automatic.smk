@@ -29,7 +29,7 @@ rule download_eurostat_floor_area:
 
 rule download_ghsl_population:
     output:
-        archive=f"<resources>/automatic/ghsl/pop_{config['floor_area']['ghsl_epoch']}_100.zip",
+        archive=f"<resources>/automatic/ghsl/pop_{config['population_ghsl']['epoch']}_100.zip",
     log:
         "<logs>/download_ghsl_population.log",
     conda:
@@ -37,8 +37,8 @@ rule download_ghsl_population:
     params:
         url=internal["resources"]["automatic"]["ghsl_population"].format(
             stem=internal["resources"]["automatic"]["ghsl_stem"].format(
-                epoch=config["floor_area"]["ghsl_epoch"],
-                resolution=config["floor_area"]["ghsl_resolution"],
+                epoch=config["population_ghsl"]["epoch"],
+                resolution=config["population_ghsl"]["resolution"],
             )
         ),
     shell:

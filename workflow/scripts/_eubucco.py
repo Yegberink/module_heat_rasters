@@ -45,21 +45,9 @@ EUBUCCO_SCHEMA = pa.schema(
 )
 
 
-def needs_eubucco_metadata(target_countries, microsoft, covered_countries) -> bool:
+def needs_eubucco_metadata(target_countries, proxies, covered_countries) -> bool:
     """Return whether target coverage or reference proxies need EUBUCCO metadata."""
-    configured = microsoft["countries"]
-    references = any(
-        country in configured
-        and (
-            configured[country]["sector_split"]["method"] == "reference_countries"
-            or (
-                configured[country]["floor_area"]["method"] == "reference_countries"
-                and configured[country]["floor_area"]["parameters"]["estimator"]
-                == "mean_floors"
-            )
-        )
-        for country in target_countries
-    )
+    references = bool(set(target_countries) & set(proxies["countries"]))
     return bool(set(target_countries) & set(covered_countries)) or references
 
 

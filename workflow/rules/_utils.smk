@@ -44,9 +44,9 @@ def eubucco_download_inputs(wildcards):
 
 def eubucco_download_url(wildcards):
     return internal["resources"]["automatic"][
-        f"eubucco_{config['floor_area']['eubucco']['source']}"
+        f"eubucco_{config['buildings_eubucco']['source']}"
     ].format(
-        version=config["floor_area"]["eubucco"]["version"],
+        version=config["buildings_eubucco"]["version"],
         nuts2=wildcards.region,
     )
 

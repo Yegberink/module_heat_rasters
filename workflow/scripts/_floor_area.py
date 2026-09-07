@@ -92,20 +92,6 @@ def residential_floor_area(data: pd.DataFrame, settings: dict[str, Any]) -> pd.S
     return area.where(area.gt(0), rooms).mul(settings["useful_to_gross_ratio"])
 
 
-def dwelling_counts(data: pd.DataFrame, settings: dict[str, Any]) -> pd.Series:
-    """Return dwelling counts from the same census classes used for floor area."""
-    common = data.loc[
-        data.freq.eq("A") & data.building.eq("TOTAL") & data.unit.eq("NR")
-    ]
-    area = common.loc[
-        common.n_room.eq("TOTAL") & common.area.isin(settings["floor_space_m2"])
-    ].groupby("geo").value.sum(min_count=1)
-    rooms = common.loc[
-        common.area.eq("TOTAL") & common.n_room.isin(settings["rooms"])
-    ].groupby("geo").value.sum(min_count=1)
-    return area.where(area.gt(0), rooms)
-
-
 def population_sums(population, polygons: gpd.GeoDataFrame) -> pd.Series:
     """Aggregate GHS-POP counts to polygons through bounded Gregor calls.
 

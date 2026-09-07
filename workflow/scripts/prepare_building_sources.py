@@ -31,7 +31,7 @@ links = validate_microsoft_index(snakemake.input.microsoft_index)
 available_quadkeys = set(links.QuadKey)
 target_countries = set(regions.country_id)
 use_eubucco = needs_eubucco_metadata(
-    target_countries, snakemake.params.microsoft, snakemake.params.eubucco_countries
+    target_countries, snakemake.params.proxies, snakemake.params.eubucco_countries
 )
 metadata = [snakemake.output.eubucco_nuts, snakemake.output.eubucco_stats]
 
@@ -97,7 +97,7 @@ for row in regions.to_crs(4326).itertuples():
     )
     microsoft = not residential or not commercial
     if microsoft:
-        assert row.country_id in snakemake.params.microsoft["countries"]
+        assert row.country_id in snakemake.params.proxies["countries"]
     region_plan[row.region_id] = {
         "eubucco_region_ids": eubucco["region_ids"],
         "eubucco_nuts2_ids": eubucco["nuts2_ids"],

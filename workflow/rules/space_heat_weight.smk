@@ -63,7 +63,7 @@ rule prepare_space_heat_sv_statistics:
         mem_mb=4096,
     params:
         settings=config["space_heat_weight"],
-        residential_type=config["floor_area"]["eubucco"]["residential_type"],
+        residential_type=config["buildings_eubucco"]["residential_type"],
     script:
         "../scripts/prepare_space_heat_sv_statistics.py"
 
@@ -91,7 +91,7 @@ rule create_space_heat_weight_batch:
         mem_mb=4096,
     params:
         space_heat_weight=config["space_heat_weight"],
-        residential_type=config["floor_area"]["eubucco"]["residential_type"],
+        residential_type=config["buildings_eubucco"]["residential_type"],
         raster=config["raster"],
     script:
         "../scripts/create_nuts3_space_heat_weight.py"

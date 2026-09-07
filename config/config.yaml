@@ -1,23 +1,32 @@
-# Assumptions for calculating and spatially allocating gross floor area.
-floor_area:
-  reference_year: 2021
-  ghsl_epoch: 2025
-  ghsl_resolution: 100
-  ghsl_chunk_size: 2048
+# Microsoft Global ML Building Footprints settings.
+buildings_microsoft:
+  release: "2026-08-13"
+
+# EUBUCCO building-stock settings.
+buildings_eubucco:
   # Maximum balanced jobs; small scopes use one job per current NUTS-2 group.
   nuts3_batches: 128
-  eubucco:
-    version: "0.2"
-    # `full` downloads selected NUTS-2 footprints and enables observed perimeter.
-    source: full
-    residential_type: residential
-    commercial_subtypes: [commercial, public]
-    assignment: centroid
-    floor_bin_representatives:
-      n_floors_0_2: 1
-      n_floors_2_4: 3
-      n_floors_4_7: 5.5
-      n_floors_7_inf: 9
+  version: "0.2"
+  # `full` downloads selected NUTS-2 footprints and enables observed perimeter.
+  source: full
+  residential_type: residential
+  commercial_subtypes: [commercial, public]
+  assignment: centroid
+  floor_bin_representatives:
+    n_floors_0_2: 1
+    n_floors_2_4: 3
+    n_floors_4_7: 5.5
+    n_floors_7_inf: 9
+
+# GHS-POP settings. Population is used to derive floor area per inhabitant.
+population_ghsl:
+  epoch: 2025
+  resolution: 100
+  chunk_size: 2048
+
+# Eurostat Census 2021 assumptions for residential gross floor area.
+eurostat:
+  reference_year: 2021
   useful_to_gross_ratio: 1.2
   floor_space_m2:
     SQM_LT30: 25
@@ -60,87 +69,29 @@ space_heat_weight:
     cutoff_spanning_bin_multipliers:
       Y1981-2000: 1.125
 
-# Use the mean floor area per person of these countries when source data is
-# missing. Multiple reference countries are averaged with equal weight.
+# Apply one proxy method to every country without Eurostat floor-area totals.
+# Reference countries are averaged with equal weight. Their EUBUCCO stock gives
+# mean floors and sector shares; their processed Eurostat totals give residential
+# floor area per inhabitant. Microsoft footprints retain the spatial building
+# pattern and are scaled to the resulting target-country total.
 data_proxies:
-  residential_floor_area:
+  method: mean_floors
+  countries:
     GBR: [IRL]
-  # Microsoft footprints replace population as the spatial fallback. Settings
-  # are per target country because building-stock assumptions vary strongly.
-  microsoft:
-    release: "2026-08-13"
-    countries:
-      ALB: &balkan_proxy
-        floor_area:
-          method: reference_countries
-          parameters: {countries: [BGR, HRV, HUN, ROU, GRC], estimator: area_per_dwelling}
-        sector_split:
-          method: reference_countries
-          parameters: {countries: [BGR, HRV, HUN, ROU, GRC]}
-      AND: &spain_proxy
-        floor_area:
-          method: reference_countries
-          parameters: {countries: [ESP], estimator: area_per_dwelling}
-        sector_split:
-          method: reference_countries
-          parameters: {countries: [ESP]}
-      BIH: *balkan_proxy
-      ISL: &nordic_proxy
-        floor_area:
-          method: reference_countries
-          parameters: {countries: [SWE, DNK], estimator: area_per_dwelling}
-        sector_split:
-          method: reference_countries
-          parameters: {countries: [SWE, DNK]}
-      LIE: &swiss_proxy
-        floor_area:
-          method: reference_countries
-          parameters: {countries: [CHE], estimator: area_per_dwelling}
-        sector_split:
-          method: reference_countries
-          parameters: {countries: [CHE]}
-      MKD: *balkan_proxy
-      MCO: &france_proxy
-        floor_area:
-          method: reference_countries
-          parameters: {countries: [FRA], estimator: area_per_dwelling}
-        sector_split:
-          method: reference_countries
-          parameters: {countries: [FRA]}
-      MNE: *balkan_proxy
-      NOR: *nordic_proxy
-      SMR: &italy_proxy
-        floor_area:
-          method: reference_countries
-          parameters: {countries: [ITA], estimator: area_per_dwelling}
-        sector_split:
-          method: reference_countries
-          parameters: {countries: [ITA]}
-      SRB: *balkan_proxy
-      XKX: *balkan_proxy
-      BRA:
-        floor_area:
-          method: reference_countries
-          parameters:
-            countries: [PRT]
-            estimator: area_per_dwelling
-        sector_split:
-          method: reference_countries
-          parameters:
-            countries: [PRT]
-      LBR:
-        floor_area:
-          method: user_specified
-          parameters:
-            estimator: area_per_dwelling
-            gross_floor_area_per_dwelling_m2: 90
-            persons_per_dwelling: 3.2
-        sector_split:
-          method: user_specified
-          parameters:
-            shares:
-              residential: 0.8
-              non_residential: 0.2
+    ALB: &balkan_proxy [BGR, HRV, HUN, ROU, GRC]
+    AND: [ESP]
+    BIH: *balkan_proxy
+    ISL: &nordic_proxy [SWE, DNK]
+    LIE: [CHE]
+    MKD: *balkan_proxy
+    MCO: [FRA]
+    MNE: *balkan_proxy
+    NOR: *nordic_proxy
+    SMR: [ITA]
+    SRB: *balkan_proxy
+    XKX: *balkan_proxy
+    BRA: [PRT]
+    LBR: [PRT]
 
 # Hectare output settings. Bounds are derived from each {shapes} case.
 raster:

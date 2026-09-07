@@ -4,7 +4,7 @@
 checkpoint prepare_building_sources:
     input:
         regions=rules.prepare_nuts3.output.regions,
-        microsoft_index=f"<resources>/automatic/microsoft/{config['data_proxies']['microsoft']['release']}/dataset-links.csv",
+        microsoft_index=f"<resources>/automatic/microsoft/{config['buildings_microsoft']['release']}/dataset-links.csv",
     output:
         manifest="<resources>/automatic/{shapes}/buildings/plan.json",
         eubucco_nuts="<resources>/automatic/{shapes}/eubucco/NUTS-regions-2016.parquet",
@@ -17,9 +17,10 @@ checkpoint prepare_building_sources:
         "../envs/eubucco-download.yaml"
     params:
         sources=internal["resources"]["automatic"],
-        eubucco=config["floor_area"]["eubucco"],
+        eubucco=config["buildings_eubucco"],
         eubucco_countries=internal["resources"]["eubucco_countries"],
-        microsoft=config["data_proxies"]["microsoft"],
+        microsoft=config["buildings_microsoft"],
+        proxies=config["data_proxies"],
     script:
         "../scripts/prepare_building_sources.py"
 
@@ -35,7 +36,7 @@ checkpoint prepare_floor_area_batches:
     conda:
         "../envs/module.yaml"
     params:
-        batch_count=config["floor_area"]["nuts3_batches"],
+        batch_count=config["buildings_eubucco"]["nuts3_batches"],
     script:
         "../scripts/prepare_floor_area_batches.py"
 
@@ -43,10 +44,10 @@ checkpoint prepare_floor_area_batches:
 rule download_eubucco:
     output:
         table=update(
-            f"<resources>/automatic/eubucco/v{config['floor_area']['eubucco']['version']}/{config['floor_area']['eubucco']['source']}/downloads/{{region}}.parquet"
+            f"<resources>/automatic/eubucco/v{config['buildings_eubucco']['version']}/{config['buildings_eubucco']['source']}/downloads/{{region}}.parquet"
         ),
     log:
-        f"<logs>/eubucco/v{config['floor_area']['eubucco']['version']}/{config['floor_area']['eubucco']['source']}/download_{{region}}.log",
+        f"<logs>/eubucco/v{config['buildings_eubucco']['version']}/{config['buildings_eubucco']['source']}/download_{{region}}.log",
     conda:
         "../envs/eubucco-download.yaml"
     params:
@@ -62,10 +63,10 @@ rule process_eubucco:
         downloads=eubucco_download_inputs,
     output:
         partitions=directory(
-            f"<resources>/automatic/{{shapes}}/eubucco/v{config['floor_area']['eubucco']['version']}/{config['floor_area']['eubucco']['source']}/processed"
+            f"<resources>/automatic/{{shapes}}/eubucco/v{config['buildings_eubucco']['version']}/{config['buildings_eubucco']['source']}/processed"
         ),
     log:
-        f"<logs>/{{shapes}}/eubucco/v{config['floor_area']['eubucco']['version']}/{config['floor_area']['eubucco']['source']}/process.log",
+        f"<logs>/{{shapes}}/eubucco/v{config['buildings_eubucco']['version']}/{config['buildings_eubucco']['source']}/process.log",
     conda:
         "../envs/module.yaml"
     resources:
@@ -79,9 +80,9 @@ rule combine_eubucco:
         plan=building_plan_input,
         partitions=rules.process_eubucco.output.partitions,
     output:
-        table=f"<resources>/automatic/{{shapes}}/eubucco/v{config['floor_area']['eubucco']['version']}/{config['floor_area']['eubucco']['source']}/buildings.parquet",
+        table=f"<resources>/automatic/{{shapes}}/eubucco/v{config['buildings_eubucco']['version']}/{config['buildings_eubucco']['source']}/buildings.parquet",
     log:
-        f"<logs>/{{shapes}}/eubucco/v{config['floor_area']['eubucco']['version']}/{config['floor_area']['eubucco']['source']}/combine.log",
+        f"<logs>/{{shapes}}/eubucco/v{config['buildings_eubucco']['version']}/{config['buildings_eubucco']['source']}/combine.log",
     conda:
         "../envs/module.yaml"
     resources:
@@ -93,15 +94,15 @@ rule combine_eubucco:
 rule download_microsoft_index:
     output:
         table=update(
-            f"<resources>/automatic/microsoft/{config['data_proxies']['microsoft']['release']}/dataset-links.csv"
+            f"<resources>/automatic/microsoft/{config['buildings_microsoft']['release']}/dataset-links.csv"
         ),
     log:
-        f"<logs>/microsoft/{config['data_proxies']['microsoft']['release']}/download_index.log",
+        f"<logs>/microsoft/{config['buildings_microsoft']['release']}/download_index.log",
     conda:
         "../envs/eubucco-download.yaml"
     params:
         url=internal["resources"]["automatic"]["microsoft_index"].format(
-            release=config["data_proxies"]["microsoft"]["release"]
+            release=config["buildings_microsoft"]["release"]
         ),
     shell:
         'test -e {output.table} || curl -fL --retry 3 --create-dirs -o {output.table} "{params.url}" 2> {log}'
@@ -112,10 +113,10 @@ rule download_microsoft:
         index=rules.download_microsoft_index.output.table,
     output:
         table=update(
-            f"<resources>/automatic/microsoft/{config['data_proxies']['microsoft']['release']}/downloads/{{quadkey}}-{{part}}.csv.gz"
+            f"<resources>/automatic/microsoft/{config['buildings_microsoft']['release']}/downloads/{{quadkey}}-{{part}}.csv.gz"
         ),
     log:
-        f"<logs>/microsoft/{config['data_proxies']['microsoft']['release']}/download_{{quadkey}}_{{part}}.log",
+        f"<logs>/microsoft/{config['buildings_microsoft']['release']}/download_{{quadkey}}_{{part}}.log",
     wildcard_constraints:
         quadkey="[0-3]{9}",
         part="[0-9]{5}",
@@ -159,13 +160,13 @@ rule extract_ghsl_population:
     input:
         rules.download_ghsl_population.output.archive,
     output:
-        raster=f"<resources>/automatic/ghsl/pop_{config['floor_area']['ghsl_epoch']}_100.tif",
+        raster=f"<resources>/automatic/ghsl/pop_{config['population_ghsl']['epoch']}_100.tif",
     log:
         "<logs>/extract_ghsl_population.log",
     params:
         internal_paths=internal["resources"]["automatic"]["ghsl_stem"].format(
-            epoch=config["floor_area"]["ghsl_epoch"],
-            resolution=config["floor_area"]["ghsl_resolution"],
+            epoch=config["population_ghsl"]["epoch"],
+            resolution=config["population_ghsl"]["resolution"],
         )
         + "_V1_0.tif",
     wrapper:
@@ -190,7 +191,9 @@ rule prepare_floor_area_totals:
     resources:
         mem_mb=4096,
     params:
-        floor_area=config["floor_area"],
+        eurostat=config["eurostat"],
+        population=config["population_ghsl"],
+        eubucco=config["buildings_eubucco"],
         proxies=config["data_proxies"],
         country_codes=internal["country_codes"],
     script:
@@ -216,7 +219,7 @@ rule create_floor_area_batch:
     resources:
         mem_mb=4096,
     params:
-        floor_area=config["floor_area"],
+        eubucco=config["buildings_eubucco"],
         raster=config["raster"],
     script:
         "../scripts/create_nuts3_floor_area.py"
@@ -238,7 +241,9 @@ rule merge_floor_area:
     resources:
         mem_mb=4096,
     params:
-        floor_area=config["floor_area"],
+        eurostat=config["eurostat"],
+        population=config["population_ghsl"],
+        eubucco=config["buildings_eubucco"],
         raster=config["raster"],
     script:
         "../scripts/merge_floor_area.py"

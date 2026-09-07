@@ -33,7 +33,6 @@ def quadkey(x: int, y: int, zoom: int = 9) -> str:
         for bit in range(zoom - 1, -1, -1)
     )
 
-
 def tile_bounds(x: int, y: int, zoom: int = 9):
     """Return a WGS84 polygon for one Bing tile."""
     scale = 1 << zoom
@@ -54,35 +53,3 @@ def intersecting_quadkeys(geometry, zoom: int = 9) -> list[str]:
         for y in range(top, bottom + 1)
         if tile_bounds(x, y, zoom).intersects(geometry)
     )
-
-
-def explicit_sector_shares(settings: dict) -> tuple[float, float]:
-    """Validate and return configured residential/non-residential shares."""
-    shares = settings["parameters"]["shares"]
-    assert math.isclose(sum(shares.values()), 1.0)
-    return shares["residential"], shares["non_residential"]
-
-
-def explicit_floor_parameters(settings: dict) -> dict[str, float | str]:
-    """Return the active explicit estimator without accepting stray metrics."""
-    assert settings["method"] == "user_specified"
-    return settings["parameters"]
-
-
-def assumed_floor_area(
-    population: float,
-    footprint_area: float,
-    parameters: dict,
-    shares: tuple[float, float],
-) -> tuple[float, float]:
-    """Calculate sector totals from one resolved Microsoft proxy assumption."""
-    residential_share, commercial_share = shares
-    if parameters["estimator"] == "area_per_dwelling":
-        residential = (
-            population
-            / parameters["persons_per_dwelling"]
-            * parameters["gross_floor_area_per_dwelling_m2"]
-        )
-        return residential, residential * commercial_share / residential_share
-    total = footprint_area * parameters["mean_floors"]
-    return total * residential_share, total * commercial_share

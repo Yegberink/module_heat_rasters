@@ -36,7 +36,7 @@ if TYPE_CHECKING:
     snakemake: Any
 
 sys.stderr = open(snakemake.log[0], "w")
-settings = snakemake.params.floor_area
+eubucco_settings = snakemake.params.eubucco
 plan = validate_eubucco_plan(snakemake.input.plan)
 batch_plan = validate_floor_area_batches(snakemake.input.batches, plan["regions"])
 batch_regions = batch_plan["batches"][snakemake.wildcards.batch]
@@ -79,8 +79,8 @@ for region_id, region in regions.iterrows():
     ]
     residential, commercial = select_building_sectors(
         selected,
-        settings["eubucco"]["residential_type"],
-        settings["eubucco"]["commercial_subtypes"],
+        eubucco_settings["residential_type"],
+        eubucco_settings["commercial_subtypes"],
     )
     fallback = microsoft.loc[microsoft.region_id.eq(region_id)]
     profile = output_profile(clipped.bounds, snakemake.params.raster, regions.crs)
@@ -113,8 +113,8 @@ for region_id, region in regions.iterrows():
             ("m2/ha",) * 3,
             {
                 "region_id": region_id,
-                "eubucco_version": settings["eubucco"]["version"],
-                "eubucco_source": settings["eubucco"]["source"],
+                "eubucco_version": eubucco_settings["version"],
+                "eubucco_source": eubucco_settings["source"],
                 "microsoft_release": plan["microsoft_release"],
                 "residential_source": plan["regions"][region_id]["residential_source"],
                 "commercial_source": plan["regions"][region_id]["commercial_source"],

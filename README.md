@@ -24,19 +24,21 @@ and the `snakemake` [documentation](https://snakemake.readthedocs.io/en/stable/s
 Data processing steps:
 
 1. Reconstruct NUTS-3 residential floor-area totals from Eurostat where available.
-2. Allocate totals with EUBUCCO buildings, falling back by complete region and sector to only the required Microsoft level-nine footprint tiles.
+2. Allocate totals with EUBUCCO buildings, falling back by complete region and sector to Microsoft level-nine footprints and replacing sparse Microsoft tiles with GHS-POP support.
 3. Estimate totals outside Eurostat coverage from configurable reference-country or explicit dwelling/floor assumptions.
-4. Reconstruct the residential floor support independently, apply
-   country-centred building compactness and NUTS-3 construction-age corrections,
-   and rasterise the result to the same 100 m grid.
+4. Reconstruct residential floor support independently, blend its within-NUTS-3
+   shares equally with GHS-POP, apply country-centred building compactness and
+   NUTS-3 construction-age corrections, and rasterise the result to the same
+   100 m grid.
 
 The outputs have deliberately different meanings:
 
 - `floor_area.tif` contains reconstructed physical residential and
   commercial/public gross floor area in `m2/ha`.
 - `residential_space_heat_weight.tif` contains area-like spatial support in
-  `weighted_m2/ha`. It is not heat demand in MWh and is not normalised within
-  NUTS-3. A downstream workflow must normalise it over all shapes or cells in a
+  `weighted_m2/ha`. It is not heat demand in MWh; the floor-area/population blend
+  is normalised within NUTS-3 before the heat corrections are applied. A
+  downstream workflow must normalise it over all shapes or cells in a
   country before multiplying it by the authoritative national household
   space-heating total.
 

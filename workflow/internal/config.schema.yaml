@@ -20,9 +20,10 @@ properties:
   buildings_microsoft:
     type: object
     additionalProperties: false
-    required: [release]
+    required: [release, minimum_building_count]
     properties:
       release: {type: string, pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"}
+      minimum_building_count: {type: integer, minimum: 0}
   buildings_eubucco:
     type: object
     additionalProperties: false
@@ -76,9 +77,16 @@ properties:
   space_heat_weight:
     type: object
     additionalProperties: false
-    required: [nuts3_batches, surface_volume, age]
+    required: [nuts3_batches, population, surface_volume, age]
     properties:
       nuts3_batches: {type: integer, minimum: 1}
+      population:
+        type: object
+        additionalProperties: false
+        required: [share, resampling]
+        properties:
+          share: {type: number, minimum: 0, maximum: 1}
+          resampling: {type: string, const: sum}
       surface_volume:
         type: object
         additionalProperties: false

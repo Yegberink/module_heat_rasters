@@ -77,6 +77,8 @@ rule create_space_heat_weight_batch:
         batches=space_heat_weight_batch_plan_input,
         eubucco=selected_eubucco_input,
         microsoft=selected_microsoft_input,
+        microsoft_statistics=selected_microsoft_statistics_input,
+        population=rules.extract_ghsl_population.output.raster,
         age=rules.prepare_nuts3_building_age.output.table,
         sv_statistics=rules.prepare_space_heat_sv_statistics.output.table,
     output:
@@ -91,6 +93,8 @@ rule create_space_heat_weight_batch:
         mem_mb=4096,
     params:
         space_heat_weight=config["space_heat_weight"],
+        microsoft=config["buildings_microsoft"],
+        population=config["population_ghsl"],
         residential_type=config["buildings_eubucco"]["residential_type"],
         raster=config["raster"],
     script:
@@ -114,6 +118,8 @@ rule merge_space_heat_weight:
         mem_mb=4096,
     params:
         space_heat_weight=config["space_heat_weight"],
+        microsoft=config["buildings_microsoft"],
+        population=config["population_ghsl"],
         raster=config["raster"],
     script:
         "../scripts/merge_space_heat_weight.py"

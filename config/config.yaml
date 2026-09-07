@@ -1,6 +1,8 @@
 # Microsoft Global ML Building Footprints settings.
 buildings_microsoft:
   release: "2026-08-13"
+  # Raw features per level-nine tile; zero disables sparse-tile fallback.
+  minimum_building_count: 2000
 
 # EUBUCCO building-stock settings.
 buildings_eubucco:
@@ -51,11 +53,16 @@ eurostat:
   floor_area_per_room_m2: 20
 
 # Assumptions for the support raster used to allocate national household
-# space-heating demand. The Eurostat source combines 1981--2000; its configured
+# space-heating demand. Residential floor-area and GHS-POP shares are blended
+# within complete NUTS-3 regions before shape clipping. The Eurostat source
+# combines 1981--2000; its configured
 # 1.125 multiplier is the equal-decade blend of 1.25 (through 1990) and 1.0
 # (1991--2000). No age or height values are inferred from other countries.
 space_heat_weight:
   nuts3_batches: 128
+  population:
+    share: 0.5
+    resampling: sum
   surface_volume:
     elasticity: 0.33
     method: footprint_perimeter

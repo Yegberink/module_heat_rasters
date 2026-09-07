@@ -99,6 +99,16 @@ def selected_microsoft_input(wildcards):
     return outputs.empty_microsoft
 
 
+def selected_microsoft_statistics_input(wildcards):
+    outputs = building_source_outputs(wildcards)
+    plan = read_building_plan(wildcards)
+    if any(region["microsoft_quadkeys"] for region in plan["regions"].values()):
+        return str(rules.process_microsoft.output.statistics).format(
+            shapes=wildcards.shapes
+        )
+    return outputs.empty_microsoft_statistics
+
+
 def read_floor_area_batch_plan(wildcards):
     import json
 

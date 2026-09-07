@@ -5,7 +5,7 @@ by useful-floor-space class. Where countries report rooms instead of area, room
 counts are converted with the configured mean area per room. Useful area is then
 converted to gross floor area with the configured ratio. Building centroids
 locate EUBUCCO or Microsoft building support on the hectare grid. GHS-POP is
-used only to estimate dwelling totals outside Eurostat coverage.
+used to estimate totals outside Eurostat coverage and to inform heat support.
 
 The use of building stock and population proxies follows the hectare-level
 floor-area regionalisation approach described by Müller et al. (2019).
@@ -24,9 +24,13 @@ import numpy as np
 import pandas as pd
 import rasterio
 import shapely
+from _microsoft import quadkey_polygon
 from _schemas import validate_census
 from affine import Affine
 from gregor.aggregate import aggregate_raster_to_polygon
+from rasterio.enums import Resampling
+from rasterio.features import geometry_mask
+from rasterio.warp import reproject
 from rasterio.windows import Window
 
 
@@ -139,6 +143,84 @@ def output_profile(bounds, settings, crs="EPSG:3035", count=3):
     }
 
 
+def population_grid(source, profile, geometry, resampling, total):
+    """Reproject counts, retain region-centred cells, and conserve its total."""
+    population = np.zeros((profile["height"], profile["width"]), dtype=float)
+    reproject(
+        rasterio.band(source, 1),
+        population,
+        dst_transform=profile["transform"],
+        dst_crs=profile["crs"],
+        dst_nodata=0,
+        resampling=Resampling[resampling],
+    )
+    population[population == source.nodata] = 0
+    population[geometry_mask([geometry], population.shape, profile["transform"])] = 0
+    assert np.isfinite(population).all()
+    assert (population >= 0).all()
+    assert population.sum() > 0 or total == 0
+    if total > 0:
+        population *= total / population.sum()
+    assert np.isclose(population.sum(), total)
+    return population
+
+
+def point_grid(profile, points, values):
+    """Sum point values into an aligned raster array."""
+    grid = np.zeros((profile["height"], profile["width"]), dtype=float)
+    if points.empty:
+        return grid
+    rows, columns = rasterio.transform.rowcol(
+        profile["transform"], points.geometry.x, points.geometry.y
+    )
+    np.add.at(grid, (np.asarray(rows), np.asarray(columns)), np.asarray(values))
+    return grid
+
+
+def microsoft_floor_area_support(
+    profile, buildings, population, sector_total, regional_population, low_quadkeys
+):
+    """Replace sparse Microsoft tiles and conserve one regional sector total."""
+    proxy = np.zeros_like(population, dtype=float)
+    if low_quadkeys:
+        polygons = gpd.GeoSeries(
+            [quadkey_polygon(key) for key in sorted(low_quadkeys)], crs=4326
+        ).to_crs(profile["crs"])
+        inside_low_tiles = geometry_mask(
+            [polygons.union_all()], population.shape, profile["transform"], invert=True
+        )
+        assert regional_population > 0 or sector_total == 0
+        if sector_total > 0:
+            proxy[inside_low_tiles] = (
+                population[inside_low_tiles] * sector_total / regional_population
+            )
+
+    good = buildings.loc[~buildings.quadkey.isin(low_quadkeys)].copy()
+    remaining = sector_total - proxy.sum()
+    support = good.footprint_area_m2.sum()
+    assert remaining >= 0
+    assert support > 0 or np.isclose(remaining, 0)
+    good["floor_area_m2"] = (
+        good.footprint_area_m2 * remaining / support if support > 0 else 0.0
+    )
+    assert np.isclose(good.floor_area_m2.sum() + proxy.sum(), sector_total)
+    return good, proxy
+
+
+def clipped_grid(grid, source_profile, profile, geometry):
+    """Extract one aligned shape window and retain cells centred in its geometry."""
+    bounds = rasterio.transform.array_bounds(
+        profile["height"], profile["width"], profile["transform"]
+    )
+    raw = rasterio.windows.from_bounds(*bounds, transform=source_profile["transform"])
+    window = Window(
+        round(raw.col_off), round(raw.row_off), round(raw.width), round(raw.height)
+    )
+    clipped = grid[window.toslices()].copy()
+    clipped[geometry_mask([geometry], clipped.shape, profile["transform"])] = 0
+    return clipped
+
+
 def write_points(output, band, points, values) -> None:
     """Sum building floor areas into cells containing their centroids.
 
@@ -170,7 +252,5 @@ def add_partial(output, partial) -> None:
         round(raw.col_off), round(raw.row_off), round(raw.width), round(raw.height)
     )
     output.write(
-        output.read((1, 2), window=window) + partial.read((1, 2)),
-        (1, 2),
-        window=window,
+        output.read((1, 2), window=window) + partial.read((1, 2)), (1, 2), window=window
     )

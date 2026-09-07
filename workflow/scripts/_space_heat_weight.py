@@ -1,7 +1,7 @@
 """Pure calculations for residential space-heating spatial support.
 
-The support multiplies corrected gross residential floor area by independently
-centred compactness and construction-age factors.
+The support blends gross residential floor-area and population shares before
+multiplying by independently centred compactness and construction-age factors.
 
 The equivalent-square method supports lightweight EUBUCCO, while full EUBUCCO
 provides observed footprint perimeter. Hotmaps elasticities and age multipliers
@@ -19,10 +19,7 @@ def _return(values: np.ndarray):
 
 
 def surface_to_volume_ratio(
-    footprint_area_m2,
-    height_m,
-    footprint_perimeter_m=None,
-    method="equivalent_square",
+    footprint_area_m2, height_m, footprint_perimeter_m=None, method="equivalent_square"
 ):
     """Return ``P/A + 2/H`` for valid extruded buildings, otherwise NaN.
 
@@ -93,10 +90,34 @@ def age_factor_from_counts(
     """Return the dwelling-count-weighted factor for known canonical age groups."""
     known = sum(counts.get(group, 0.0) for group in multipliers)
     return (
-        sum(counts.get(group, 0.0) * multiplier for group, multiplier in multipliers.items())
+        sum(
+            counts.get(group, 0.0) * multiplier
+            for group, multiplier in multipliers.items()
+        )
         / known
         if known > 0
         else np.nan
+    )
+
+
+def blend_floor_area(building_floor_area, population, total: float, share: float):
+    """Blend regional building and population shares to a floor-area control."""
+    building = np.asarray(building_floor_area, dtype=float)
+    population = np.asarray(population, dtype=float)
+    assert np.isclose(building.sum(), total)
+    if total == 0 or share == 0:
+        return building
+    assert population.sum() > 0
+    blended = (1 - share) * building + share * total * population / population.sum()
+    assert np.isclose(blended.sum(), total)
+    return blended
+
+
+def cell_surface_volume_factor(floor_area, weighted_factor):
+    """Average building compactness by floor area, neutral in empty cells."""
+    floor_area = np.asarray(floor_area, dtype=float)
+    return np.divide(
+        weighted_factor, floor_area, out=np.ones_like(floor_area), where=floor_area > 0
     )
 
 

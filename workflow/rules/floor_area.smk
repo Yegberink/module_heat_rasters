@@ -11,6 +11,7 @@ checkpoint prepare_building_sources:
         eubucco_stats="<resources>/automatic/{shapes}/eubucco/region-stats.parquet",
         empty_eubucco="<resources>/automatic/{shapes}/buildings/empty_eubucco.parquet",
         empty_microsoft="<resources>/automatic/{shapes}/buildings/empty_microsoft.parquet",
+        empty_microsoft_statistics="<resources>/automatic/{shapes}/buildings/empty_microsoft_tile_statistics.parquet",
     log:
         "<logs>/{shapes}/prepare_building_sources.log",
     conda:
@@ -133,6 +134,7 @@ rule process_microsoft:
         downloads=microsoft_download_inputs,
     output:
         partitions=directory("<resources>/automatic/{shapes}/microsoft/processed"),
+        statistics="<resources>/automatic/{shapes}/microsoft/tile_statistics.parquet",
     log:
         "<logs>/{shapes}/microsoft/process.log",
     conda:
@@ -209,6 +211,8 @@ rule create_floor_area_batch:
         batches=floor_area_batch_plan_input,
         eubucco=selected_eubucco_input,
         microsoft=selected_microsoft_input,
+        microsoft_statistics=selected_microsoft_statistics_input,
+        population=rules.extract_ghsl_population.output.raster,
     output:
         partials=directory("<resources>/automatic/{shapes}/floor_area/batches/{batch}"),
     log:
@@ -220,6 +224,8 @@ rule create_floor_area_batch:
         mem_mb=4096,
     params:
         eubucco=config["buildings_eubucco"],
+        microsoft=config["buildings_microsoft"],
+        population=config["population_ghsl"],
         raster=config["raster"],
     script:
         "../scripts/create_nuts3_floor_area.py"
@@ -244,6 +250,7 @@ rule merge_floor_area:
         eurostat=config["eurostat"],
         population=config["population_ghsl"],
         eubucco=config["buildings_eubucco"],
+        microsoft=config["buildings_microsoft"],
         raster=config["raster"],
     script:
         "../scripts/merge_floor_area.py"

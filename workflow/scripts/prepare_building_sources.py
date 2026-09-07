@@ -11,7 +11,11 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 from _eubucco import EUBUCCO_SCHEMA, map_regions, needs_eubucco_metadata
-from _microsoft import MICROSOFT_SCHEMA, intersecting_quadkeys
+from _microsoft import (
+    MICROSOFT_SCHEMA,
+    MICROSOFT_TILE_STATISTICS_SCHEMA,
+    intersecting_quadkeys,
+)
 from _schemas import (
     validate_eubucco_nuts,
     validate_eubucco_partition,
@@ -19,6 +23,7 @@ from _schemas import (
     validate_eubucco_stats,
     validate_microsoft_index,
     validate_microsoft_partition,
+    validate_microsoft_tile_statistics,
     validate_nuts3,
 )
 
@@ -127,6 +132,11 @@ pq.write_table(
 pq.write_table(
     pa.Table.from_batches([], schema=MICROSOFT_SCHEMA), snakemake.output.empty_microsoft
 )
+pq.write_table(
+    pa.Table.from_batches([], schema=MICROSOFT_TILE_STATISTICS_SCHEMA),
+    snakemake.output.empty_microsoft_statistics,
+)
 validate_eubucco_partition(snakemake.output.empty_eubucco)
 validate_microsoft_partition(snakemake.output.empty_microsoft)
+validate_microsoft_tile_statistics(snakemake.output.empty_microsoft_statistics, [])
 validate_eubucco_plan(snakemake.output.manifest)

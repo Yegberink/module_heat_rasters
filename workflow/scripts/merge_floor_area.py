@@ -54,6 +54,9 @@ with rasterio.open(snakemake.output.raster, "w+", **profile) as output:
             "eubucco_version": eubucco["version"],
             "eubucco_source": eubucco["source"],
             "microsoft_release": plan["microsoft_release"],
+            "microsoft_minimum_building_count": snakemake.params.microsoft[
+                "minimum_building_count"
+            ],
             "ghsl_epoch": population["epoch"],
             "building_assignment": eubucco["assignment"],
         },

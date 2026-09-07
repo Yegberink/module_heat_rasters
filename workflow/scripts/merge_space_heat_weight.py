@@ -40,7 +40,10 @@ with rasterio.open(snakemake.output.raster, "w+", **profile) as output:
         with rasterio.open(partials[region_id]) as partial:
             raw = rasterio.windows.from_bounds(*partial.bounds, output.transform)
             window = Window(
-                round(raw.col_off), round(raw.row_off), round(raw.width), round(raw.height)
+                round(raw.col_off),
+                round(raw.row_off),
+                round(raw.width),
+                round(raw.height),
             )
             output.write(
                 output.read(1, window=window) + partial.read(1), 1, window=window
@@ -48,8 +51,15 @@ with rasterio.open(snakemake.output.raster, "w+", **profile) as output:
     output.set_band_description(1, SPACE_HEAT_WEIGHT_BANDS[0])
     output.set_band_unit(1, "weighted_m2/ha")
     output.update_tags(
-        method="floor_area * surface_volume * age",
+        method="blended_floor_area * surface_volume * age",
         eubucco_source=plan["eubucco_source"],
+        population_source="GHS-POP",
+        population_epoch=snakemake.params.population["epoch"],
+        population_share=settings["population"]["share"],
+        population_resampling=settings["population"]["resampling"],
+        microsoft_minimum_building_count=snakemake.params.microsoft[
+            "minimum_building_count"
+        ],
         surface_volume_elasticity=settings["surface_volume"]["elasticity"],
         surface_volume_method=settings["surface_volume"]["method"],
         age_source=f"Eurostat {settings['age']['dataset']}",

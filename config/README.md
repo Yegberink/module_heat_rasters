@@ -14,9 +14,17 @@ provide effective storeys and sector shares, while processed Eurostat totals and
 GHS-POP provide residential floor area per inhabitant. Microsoft footprints
 preserve the target country's building pattern and are scaled at country level
 to that reference-derived residential total.
+`buildings_microsoft.minimum_building_count` replaces Microsoft tiles below the
+configured raw-feature count with regional GHS-POP floor-area support. A value
+of zero disables this coverage fallback.
 
 `space_heat_weight` controls the additive residential space-heating support
-workflow. `buildings_eubucco.source: lightweight` uses the Europe-wide centroid
+workflow. Its `population.share` blends normalised residential floor-area and
+GHS-POP cell shares within each complete NUTS-3 region. Sum resampling is
+reconciled to the validated regional population total after projection.
+Population-only cells receive a neutral compactness factor.
+`buildings_eubucco.source: lightweight`
+uses the Europe-wide centroid
 table and requires `surface_volume.method: equivalent_square`. Set the source to
 `full` and the method to `footprint_perimeter` to download only the required
 NUTS-2 footprint partitions and calculate observed perimeters. EUBUCCO

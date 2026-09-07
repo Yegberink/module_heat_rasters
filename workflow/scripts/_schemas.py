@@ -21,7 +21,12 @@ import pyarrow.parquet as pq
 import rasterio
 import shapely
 from _eubucco import EUBUCCO_COLUMNS, EUBUCCO_SCHEMA
-from _microsoft import MICROSOFT_COLUMNS, MICROSOFT_SCHEMA
+from _microsoft import (
+    MICROSOFT_COLUMNS,
+    MICROSOFT_SCHEMA,
+    MICROSOFT_TILE_STATISTICS_COLUMNS,
+    MICROSOFT_TILE_STATISTICS_SCHEMA,
+)
 
 FLOOR_AREA_BANDS = ("residential", "commercial", "total")
 SPACE_HEAT_WEIGHT_BANDS = ("residential_space_heat_weight",)
@@ -213,6 +218,7 @@ def validate_microsoft_partition(path: str | Path) -> None:
     valid = duckdb.connect().execute(
         """
         SELECT count(*) = count(DISTINCT id),
+               coalesce(bool_and(regexp_full_match(quadkey, '[0-3]{9}')), true),
                coalesce(bool_and(length(region_id) > 0), true),
                coalesce(bool_and(isfinite(footprint_area_m2) AND footprint_area_m2 > 0), true),
                coalesce(bool_and(isfinite(x) AND isfinite(y)), true)
@@ -222,6 +228,21 @@ def validate_microsoft_partition(path: str | Path) -> None:
     ).fetchone()
     assert valid is not None
     assert all(valid)
+
+
+def validate_microsoft_tile_statistics(
+    path: str | Path, planned_quadkeys=None
+) -> pd.DataFrame:
+    """Validate raw Microsoft feature counts for every planned quadkey."""
+    assert pq.read_schema(path) == MICROSOFT_TILE_STATISTICS_SCHEMA
+    statistics = pd.read_parquet(path)
+    assert list(statistics) == MICROSOFT_TILE_STATISTICS_COLUMNS
+    assert statistics.quadkey.is_unique
+    assert statistics.quadkey.str.fullmatch(r"[0-3]{9}").all()
+    assert statistics.building_count.ge(0).all()
+    if planned_quadkeys is not None:
+        assert set(statistics.quadkey) == set(planned_quadkeys)
+    return statistics
 
 
 def validate_floor_area_batches(path: str | Path, nuts3_ids=None) -> dict:

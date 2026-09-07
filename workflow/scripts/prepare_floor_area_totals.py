@@ -17,6 +17,7 @@ from _floor_area import census_values, population_sums, residential_floor_area
 from _schemas import (
     validate_eubucco_stats,
     validate_floor_area_totals,
+    validate_microsoft_totals,
     validate_nuts3,
     validate_nuts3_source,
     validate_population_raster,
@@ -36,7 +37,9 @@ regions = validate_nuts3(snakemake.input.nuts3).set_index("region_id")
 nuts_source = validate_nuts3_source(snakemake.input.nuts3_source).to_crs(regions.crs)
 nuts_source["country_id"] = nuts_source.CNTR_CODE.map(reverse_countries)
 nuts_source = nuts_source.set_index("NUTS_ID")
-validate_population_raster(snakemake.input.population, population_settings["resolution"])
+validate_population_raster(
+    snakemake.input.population, population_settings["resolution"]
+)
 population_source: Any = rioxarray.open_rasterio(
     snakemake.input.population,
     masked=True,
@@ -54,10 +57,9 @@ census_area = residential_floor_area(raw_census, eurostat)
 stats = validate_eubucco_stats(snakemake.input.eubucco_stats)
 plan = read_plan(snakemake.input.plan)
 microsoft_area = (
-    pd.read_parquet(snakemake.input.microsoft)
-    .groupby("region_id")
-    .footprint_area_m2.sum()
-    .reindex(regions.index, fill_value=0)
+    validate_microsoft_totals(snakemake.input.microsoft_totals)
+    .set_index("region_id")
+    .footprint_area_m2.reindex(regions.index, fill_value=0)
 )
 
 

@@ -23,6 +23,10 @@ MICROSOFT_TILE_STATISTICS_SCHEMA = pa.schema(
     [("quadkey", pa.string()), ("building_count", pa.int64())]
 )
 
+MICROSOFT_TOTALS_SCHEMA = pa.schema(
+    [("region_id", pa.string()), ("footprint_area_m2", pa.float64())]
+)
+
 
 def tile_xy(lon: float, lat: float, zoom: int = 9) -> tuple[int, int]:
     """Return the Bing tile containing a WGS84 coordinate."""

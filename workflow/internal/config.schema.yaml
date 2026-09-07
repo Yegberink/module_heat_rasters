@@ -1,8 +1,8 @@
 $schema: "https://json-schema.org/draft/2020-12/schema"
-description: "Schema for floor-area raster settings."
+description: "Schema for shared floor-area and residential heat-weight processing."
 type: object
 additionalProperties: false
-required: [buildings_microsoft, buildings_eubucco, population_ghsl, eurostat, space_heat_weight, data_proxies, raster]
+required: [processing, buildings_microsoft, buildings_eubucco, population_ghsl, eurostat, space_heat_weight, data_proxies, raster]
 allOf:
   - if:
       properties:
@@ -17,6 +17,13 @@ allOf:
           properties:
             source: {const: full}
 properties:
+  processing:
+    type: object
+    additionalProperties: false
+    required: [nuts3_batches, intermediate_dtype]
+    properties:
+      nuts3_batches: {type: integer, minimum: 1}
+      intermediate_dtype: {type: string, const: float64}
   buildings_microsoft:
     type: object
     additionalProperties: false
@@ -27,9 +34,8 @@ properties:
   buildings_eubucco:
     type: object
     additionalProperties: false
-    required: [nuts3_batches, version, source, residential_type, commercial_subtypes, assignment, floor_bin_representatives]
+    required: [version, source, residential_type, commercial_subtypes, assignment, floor_bin_representatives]
     properties:
-      nuts3_batches: {type: integer, minimum: 1}
       version: {type: string, const: "0.2"}
       source: {type: string, enum: [lightweight, full]}
       residential_type: {type: string, const: residential}
@@ -77,9 +83,8 @@ properties:
   space_heat_weight:
     type: object
     additionalProperties: false
-    required: [nuts3_batches, population, surface_volume, age]
+    required: [population, surface_volume, age]
     properties:
-      nuts3_batches: {type: integer, minimum: 1}
       population:
         type: object
         additionalProperties: false

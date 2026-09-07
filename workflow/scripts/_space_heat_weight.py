@@ -8,8 +8,6 @@ provides observed footprint perimeter. Hotmaps elasticities and age multipliers
 follow Müller et al. (2019).
 """
 
-from collections.abc import Mapping
-
 import numpy as np
 
 
@@ -62,57 +60,6 @@ def surface_volume_power(surface_volume_ratio, elasticity: float):
     return _return(values)
 
 
-def weighted_reference(weights, values) -> float:
-    """Return the valid positive-weight mean, or neutral one if none exists."""
-    weights, values = np.broadcast_arrays(
-        np.asarray(weights, dtype=float), np.asarray(values, dtype=float)
-    )
-    valid = np.isfinite(weights) & (weights > 0) & np.isfinite(values)
-    return (
-        float(np.sum(weights[valid] * values[valid]) / np.sum(weights[valid]))
-        if np.any(valid)
-        else 1.0
-    )
-
-
-def normalised_factor(values, reference: float):
-    """Centre valid values on a positive reference; missing values stay neutral."""
-    if not np.isfinite(reference) or reference <= 0:
-        raise ValueError("reference must be finite and positive")
-    values = np.asarray(values, dtype=float)
-    factor = np.where(np.isfinite(values), values / reference, 1.0)
-    return _return(factor)
-
-
-def age_factor_from_counts(
-    counts: Mapping[str, float], multipliers: Mapping[str, float]
-) -> float:
-    """Return the dwelling-count-weighted factor for known canonical age groups."""
-    known = sum(counts.get(group, 0.0) for group in multipliers)
-    return (
-        sum(
-            counts.get(group, 0.0) * multiplier
-            for group, multiplier in multipliers.items()
-        )
-        / known
-        if known > 0
-        else np.nan
-    )
-
-
-def blend_floor_area(building_floor_area, population, total: float, share: float):
-    """Blend regional building and population shares to a floor-area control."""
-    building = np.asarray(building_floor_area, dtype=float)
-    population = np.asarray(population, dtype=float)
-    assert np.isclose(building.sum(), total)
-    if total == 0 or share == 0:
-        return building
-    assert population.sum() > 0
-    blended = (1 - share) * building + share * total * population / population.sum()
-    assert np.isclose(blended.sum(), total)
-    return blended
-
-
 def cell_surface_volume_factor(floor_area, weighted_factor):
     """Average building compactness by floor area, neutral in empty cells."""
     floor_area = np.asarray(floor_area, dtype=float)
@@ -124,3 +71,30 @@ def cell_surface_volume_factor(floor_area, weighted_factor):
 def space_heat_weight(floor_area_m2, f_sv=1.0, f_age=1.0):
     """Combine corrected floor area and dimensionless heat-support factors."""
     return np.asarray(floor_area_m2) * f_sv * f_age
+
+
+def weight_from_support(
+    floor_area,
+    population,
+    valid_area,
+    weighted_power,
+    reference,
+    total,
+    population_total,
+    share,
+    age,
+):
+    """Apply the original heat formula to cached additive building statistics.
+
+    F - V retains neutral support from missing compactness and Microsoft.
+    Population is normalised over the complete region, even for scoped cells.
+    """
+    blended = floor_area
+    if total > 0 and share > 0:
+        blended = (
+            1 - share
+        ) * floor_area + share * total * population / population_total
+    corrected = weighted_power / reference + (floor_area - valid_area)
+    return space_heat_weight(
+        blended, cell_surface_volume_factor(floor_area, corrected), age
+    )

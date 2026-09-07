@@ -221,36 +221,18 @@ def clipped_grid(grid, source_profile, profile, geometry):
     return clipped
 
 
-def write_points(output, band, points, values) -> None:
-    """Sum building floor areas into cells containing their centroids.
-
-    ``numpy.add.at`` is used because many buildings may map to the same cell;
-    ordinary indexed assignment would overwrite repeated cell indices.
-    """
-    if points.empty:
-        return
-    rows, columns = rasterio.transform.rowcol(
-        output.transform, points.geometry.x, points.geometry.y
-    )
-    rows, columns, values = map(np.asarray, (rows, columns, values))
-    inside = (
-        (rows >= 0) & (rows < output.height) & (columns >= 0) & (columns < output.width)
-    )
-    raster = output.read(band)
-    np.add.at(raster, (rows[inside], columns[inside]), values[inside])
-    output.write(raster, band)
-
-
-def add_partial(output, partial) -> None:
-    """Add one aligned NUTS-3 partial's sector bands to the final raster.
-
-    Only residential and commercial bands are merged; the total band is derived
-    once after all partials have been added.
-    """
+def add_partial(output, partial, bands=(1, 2)) -> None:
+    """Add aligned floor-area or heat bands in bounded raster windows."""
     raw = rasterio.windows.from_bounds(*partial.bounds, output.transform)
-    window = Window(
-        round(raw.col_off), round(raw.row_off), round(raw.width), round(raw.height)
-    )
-    output.write(
-        output.read((1, 2), window=window) + partial.read((1, 2)), (1, 2), window=window
-    )
+    for _, window in partial.block_windows(1):
+        destination = Window(
+            round(raw.col_off) + window.col_off,
+            round(raw.row_off) + window.row_off,
+            window.width,
+            window.height,
+        )
+        output.write(
+            output.read(bands, window=destination) + partial.read(bands, window=window),
+            bands,
+            window=destination,
+        )

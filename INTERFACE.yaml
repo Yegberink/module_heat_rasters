@@ -19,9 +19,9 @@ pathvars:
   results:
     floor_area:
       default: "<results>/{shapes}/rasters/floor_area.tif"
-      description: Residential and commercial/public gross floor area per hectare.
+      description: Residential, commercial/public, and total gross floor area per hectare. Produced together with residential_space_heat_weight.
     residential_space_heat_weight:
       default: "<results>/{shapes}/rasters/residential_space_heat_weight.tif"
-      description: Population-informed hectare support weights for allocating national residential space-heating demand.
+      description: Population-informed hectare support weights for allocating national residential space-heating demand. Produced together with floor_area; no commercial/public heat weight.
 wildcards:
   shapes: Name of the provided shape set.

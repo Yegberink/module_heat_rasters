@@ -8,7 +8,7 @@ import duckdb
 import pyarrow as pa
 import pyarrow.parquet as pq
 from _microsoft import MICROSOFT_COLUMNS, MICROSOFT_SCHEMA
-from _schemas import validate_microsoft_partition
+from _schemas import validate_microsoft_partition, validate_microsoft_totals
 
 if TYPE_CHECKING:
     snakemake: Any
@@ -26,5 +26,20 @@ if partitions:
         TO '{snakemake.output.table}' (FORMAT PARQUET, COMPRESSION ZSTD, ROW_GROUP_SIZE 100000)"""
     )
 else:
-    pq.write_table(pa.Table.from_batches([], schema=MICROSOFT_SCHEMA), snakemake.output.table)
+    pq.write_table(
+        pa.Table.from_batches([], schema=MICROSOFT_SCHEMA), snakemake.output.table
+    )
 validate_microsoft_partition(snakemake.output.table)
+
+# Aggregate in the source stage; allocation only needs this small regional table.
+pq.write_table(
+    duckdb.connect()
+    .execute(
+        "SELECT region_id, sum(footprint_area_m2)::DOUBLE AS footprint_area_m2 "
+        "FROM read_parquet(?) GROUP BY region_id ORDER BY region_id",
+        [str(snakemake.output.table)],
+    )
+    .to_arrow_table(),
+    snakemake.output.totals,
+)
+validate_microsoft_totals(snakemake.output.totals)

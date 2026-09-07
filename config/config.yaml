@@ -1,3 +1,9 @@
+# Shared processing and persistent raster intermediates.
+processing:
+  # Maximum balanced jobs; small scopes use one job per current NUTS-2 group.
+  nuts3_batches: 128
+  intermediate_dtype: float64
+
 # Microsoft Global ML Building Footprints settings.
 buildings_microsoft:
   release: "2026-08-13"
@@ -6,8 +12,6 @@ buildings_microsoft:
 
 # EUBUCCO building-stock settings.
 buildings_eubucco:
-  # Maximum balanced jobs; small scopes use one job per current NUTS-2 group.
-  nuts3_batches: 128
   version: "0.2"
   # `full` downloads selected NUTS-2 footprints and enables observed perimeter.
   source: full
@@ -59,7 +63,6 @@ eurostat:
 # 1.125 multiplier is the equal-decade blend of 1.25 (through 1990) and 1.0
 # (1991--2000). No age or height values are inferred from other countries.
 space_heat_weight:
-  nuts3_batches: 128
   population:
     share: 0.5
     resampling: sum

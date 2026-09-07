@@ -26,10 +26,188 @@ from _microsoft import (
     MICROSOFT_SCHEMA,
     MICROSOFT_TILE_STATISTICS_COLUMNS,
     MICROSOFT_TILE_STATISTICS_SCHEMA,
+    MICROSOFT_TOTALS_SCHEMA,
 )
 
 FLOOR_AREA_BANDS = ("residential", "commercial", "total")
 SPACE_HEAT_WEIGHT_BANDS = ("residential_space_heat_weight",)
+SUPPORT_BANDS = {
+    "floor_area": FLOOR_AREA_BANDS[:2],
+    "residential_full": (
+        "residential",
+        "population",
+        "sv_valid_floor_area",
+        "sv_weighted_floor_area",
+    ),
+    "residential_scoped": (
+        "population",
+        "sv_valid_floor_area",
+        "sv_weighted_floor_area",
+    ),
+}
+SUPPORT_UNITS = {
+    "floor_area": ("m2/ha", "m2/ha"),
+    "residential_full": ("m2/ha", "people/ha", "m2/ha", "m2/ha * sv_power"),
+    "residential_scoped": ("people/ha", "m2/ha", "m2/ha * sv_power"),
+}
+
+
+def validate_microsoft_totals(path):
+    """Read regional footprint sums, including the typed empty-source table."""
+    assert pq.read_schema(path) == MICROSOFT_TOTALS_SCHEMA
+    totals = pd.read_parquet(path)
+    assert totals.region_id.is_unique
+    assert totals.region_id.str.len().gt(0).all()
+    assert np.isfinite(totals.footprint_area_m2).all()
+    assert totals.footprint_area_m2.ge(0).all()
+    return totals
+
+
+def validate_support_summary(path, region_ids=None):
+    """Read one row per complete region with conserved support and provenance."""
+    summary = pd.read_parquet(path)
+    assert list(summary) == [
+        "region_id",
+        "country_id",
+        "residential_source",
+        "commercial_source",
+        "population",
+        "residential_floor_area_m2",
+        "commercial_floor_area_m2",
+        "valid_floor_area_m2",
+        "weighted_sv_power",
+    ]
+    assert summary.region_id.is_unique
+    if region_ids is not None:
+        assert set(summary.region_id) == set(region_ids)
+    assert summary.country_id.str.fullmatch(r"[A-Z]{3}").all()
+    assert (
+        summary[["residential_source", "commercial_source"]]
+        .isin(["eubucco", "microsoft"])
+        .all()
+        .all()
+    )
+    values = summary.iloc[:, 4:]
+    assert np.isfinite(values).all().all()
+    assert values.ge(0).all().all()
+    assert (
+        summary.valid_floor_area_m2.le(summary.residential_floor_area_m2)
+        | np.isclose(summary.valid_floor_area_m2, summary.residential_floor_area_m2)
+    ).all()
+    assert (
+        summary.loc[
+            summary.residential_source.eq("microsoft"),
+            ["valid_floor_area_m2", "weighted_sv_power"],
+        ]
+        .eq(0)
+        .all()
+        .all()
+    )
+    return summary
+
+
+def validate_support_batch(directory, region_ids):
+    """Require exactly the declared regions and all three raster intermediates."""
+    directory = Path(directory)
+    assert {
+        path.name for path in directory.iterdir() if not path.name.startswith(".")
+    } == set(region_ids) | {"summary.parquet"}
+    for region_id in region_ids:
+        assert {path.name for path in (directory / region_id).iterdir()} == {
+            f"{kind}.tif" for kind in SUPPORT_BANDS
+        }
+    return validate_support_summary(directory / "summary.parquet", region_ids)
+
+
+def read_support_raster(path, settings, kind, region_id):
+    """Validate and load a persistent intermediate on the common hectare grid."""
+    with rasterio.open(path) as raster:
+        assert raster.crs.to_string() in {"EPSG:3035", "ESRI:54009"}
+        cell = settings["cell_size_m"]
+        assert raster.transform.a == cell
+        assert raster.transform.e == -cell
+        assert raster.transform.b == raster.transform.d == 0
+        assert np.allclose(
+            np.array([raster.transform.c, raster.transform.f]) / cell,
+            np.round(np.array([raster.transform.c, raster.transform.f]) / cell),
+        )
+        assert raster.count == len(SUPPORT_BANDS[kind])
+        assert raster.descriptions == SUPPORT_BANDS[kind]
+        assert raster.units == SUPPORT_UNITS[kind]
+        assert raster.dtypes == (settings["dtype"],) * raster.count
+        assert raster.nodatavals == (settings["nodata"],) * raster.count
+        assert raster.tags()["region_id"] == region_id
+        values = raster.read()
+        assert np.isfinite(values).all()
+        assert (values >= 0).all()
+        return values, raster.profile
+
+
+def validate_region_support(directory, settings, summary):
+    """Validate spatial alignment and complete-region conservation at I/O boundaries."""
+    directory = Path(directory)
+    floor, profile = read_support_raster(
+        directory / "floor_area.tif", settings, "floor_area", summary.name
+    )
+    full, full_profile = read_support_raster(
+        directory / "residential_full.tif", settings, "residential_full", summary.name
+    )
+    scoped, scoped_profile = read_support_raster(
+        directory / "residential_scoped.tif",
+        settings,
+        "residential_scoped",
+        summary.name,
+    )
+    for key in ("crs", "transform", "height", "width"):
+        assert profile[key] == scoped_profile[key]
+    assert profile["crs"] == full_profile["crs"]
+    full_bounds = rasterio.transform.array_bounds(
+        full_profile["height"], full_profile["width"], full_profile["transform"]
+    )
+    bounds = rasterio.transform.array_bounds(
+        profile["height"], profile["width"], profile["transform"]
+    )
+    assert bounds[0] >= full_bounds[0]
+    assert bounds[1] >= full_bounds[1]
+    assert bounds[2] <= full_bounds[2]
+    assert bounds[3] <= full_bounds[3]
+    assert np.allclose(
+        full.sum(axis=(1, 2)),
+        [
+            summary.residential_floor_area_m2,
+            summary.population,
+            summary.valid_floor_area_m2,
+            summary.weighted_sv_power,
+        ],
+    )
+    for area, valid in ((full[0], full[2]), (floor[0], scoped[1])):
+        assert ((valid <= area) | np.isclose(valid, area)).all()
+    assert (
+        np.less_equal(scoped.sum(axis=(1, 2)), full[1:].sum(axis=(1, 2)))
+        | np.isclose(scoped.sum(axis=(1, 2)), full[1:].sum(axis=(1, 2)))
+    ).all()
+    for value, total in zip(
+        floor.sum(axis=(1, 2)),
+        [summary.residential_floor_area_m2, summary.commercial_floor_area_m2],
+        strict=True,
+    ):
+        assert value <= total or np.isclose(value, total)
+    return floor, full, scoped, profile
+
+
+def validate_raster_alignment(floor_path, heat_path, profile):
+    """Require paired regional outputs on the final grid and within its bounds."""
+    with rasterio.open(floor_path) as floor, rasterio.open(heat_path) as heat:
+        assert floor.crs == heat.crs == profile["crs"]
+        assert floor.transform == heat.transform
+        assert floor.shape == heat.shape
+        window = rasterio.windows.from_bounds(*floor.bounds, profile["transform"])
+        offsets = [window.col_off, window.row_off, window.width, window.height]
+        assert np.allclose(offsets, np.round(offsets))
+        assert window.col_off >= 0
+        assert window.row_off >= 0
+        assert window.col_off + window.width <= profile["width"]
+        assert window.row_off + window.height <= profile["height"]
 
 
 def validate_shape_source(path: str | Path) -> gpd.GeoDataFrame:
@@ -176,11 +354,15 @@ def validate_eubucco_plan(path: str | Path) -> dict:
             "commercial_source",
             "microsoft_quadkeys",
         ]
-        assert mapping["eubucco_region_ids"] == sorted(set(mapping["eubucco_region_ids"]))
+        assert mapping["eubucco_region_ids"] == sorted(
+            set(mapping["eubucco_region_ids"])
+        )
         assert mapping["eubucco_nuts2_ids"] == sorted(set(mapping["eubucco_nuts2_ids"]))
         assert mapping["residential_source"] in {"eubucco", "microsoft"}
         assert mapping["commercial_source"] in {"eubucco", "microsoft"}
-        assert mapping["microsoft_quadkeys"] == sorted(set(mapping["microsoft_quadkeys"]))
+        assert mapping["microsoft_quadkeys"] == sorted(
+            set(mapping["microsoft_quadkeys"])
+        )
         assert all(
             len(key) == 9 and set(key) <= set("0123")
             for key in mapping["microsoft_quadkeys"]
@@ -215,8 +397,10 @@ def validate_microsoft_partition(path: str | Path) -> None:
     """Validate one canonical Microsoft footprint partition."""
     assert pq.read_schema(path) == MICROSOFT_SCHEMA
     assert pq.read_schema(path).names == MICROSOFT_COLUMNS
-    valid = duckdb.connect().execute(
-        """
+    valid = (
+        duckdb.connect()
+        .execute(
+            """
         SELECT count(*) = count(DISTINCT id),
                coalesce(bool_and(regexp_full_match(quadkey, '[0-3]{9}')), true),
                coalesce(bool_and(length(region_id) > 0), true),
@@ -224,8 +408,10 @@ def validate_microsoft_partition(path: str | Path) -> None:
                coalesce(bool_and(isfinite(x) AND isfinite(y)), true)
         FROM read_parquet(?)
         """,
-        [str(path)],
-    ).fetchone()
+            [str(path)],
+        )
+        .fetchone()
+    )
     assert valid is not None
     assert all(valid)
 
@@ -354,11 +540,27 @@ def validate_nuts3_building_age(path: str | Path, nuts3_ids=None) -> pd.DataFram
         assert set(age.region_id) == set(nuts3_ids)
     assert age.country_id.str.fullmatch(r"[A-Z]{3}").all()
     assert age.age_data_available.dtype == bool
-    assert np.isfinite(
-        age[["age_factor", "known_dwellings", "total_dwellings", "coverage_fraction"]]
-    ).all().all()
+    assert (
+        np.isfinite(
+            age[
+                [
+                    "age_factor",
+                    "known_dwellings",
+                    "total_dwellings",
+                    "coverage_fraction",
+                ]
+            ]
+        )
+        .all()
+        .all()
+    )
     assert age.age_factor.gt(0).all()
-    assert age[["known_dwellings", "total_dwellings", "coverage_fraction"]].ge(0).all().all()
+    assert (
+        age[["known_dwellings", "total_dwellings", "coverage_fraction"]]
+        .ge(0)
+        .all()
+        .all()
+    )
     assert age.age_factor_raw.notna().eq(age.age_data_available).all()
     assert age.loc[~age.age_data_available, "age_factor"].eq(1).all()
     return age
@@ -452,7 +654,9 @@ def validate_space_heat_weight_raster(path: str | Path, schema: dict[str, Any]) 
     """Validate a shape-scoped single-band non-negative heat-support raster."""
     with rasterio.open(path) as raster:
         assert raster.crs.to_string() in {"EPSG:3035", "ESRI:54009"}
-        assert abs(raster.transform.a) == abs(raster.transform.e) == schema["cell_size_m"]
+        assert (
+            abs(raster.transform.a) == abs(raster.transform.e) == schema["cell_size_m"]
+        )
         assert raster.count == 1
         assert raster.dtypes == (schema["dtype"],)
         assert raster.nodatavals == (schema["nodata"],)
@@ -474,3 +678,14 @@ def validate_plot(path: str | Path) -> None:
     assert image.shape[0] > 0
     assert image.shape[1] > 0
     assert np.isfinite(image).all()
+
+
+def validate_weight_batch(directory, region_ids):
+    """Require every declared regional weight raster and its diagnostic row."""
+    directory = Path(directory)
+    assert {
+        path.name for path in directory.iterdir() if not path.name.startswith(".")
+    } == {f"{region}.tif" for region in region_ids} | {"diagnostics.parquet"}
+    return validate_space_heat_diagnostics(
+        directory / "diagnostics.parquet", region_ids
+    )

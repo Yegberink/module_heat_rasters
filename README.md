@@ -1,7 +1,7 @@
 # Floor-area and residential space-heating support rasters
 
-This module develops floor-area rasters and a separate support raster for
-spatial energy-system analysis.
+This module jointly produces floor-area rasters and residential space-heating
+support for spatial energy-system analysis.
 
 <!-- Place an attractive image of module outputs here -->
 <p align="center">
@@ -26,10 +26,18 @@ Data processing steps:
 1. Reconstruct NUTS-3 residential floor-area totals from Eurostat where available.
 2. Allocate totals with EUBUCCO buildings, falling back by complete region and sector to Microsoft level-nine footprints and replacing sparse Microsoft tiles with GHS-POP support.
 3. Estimate totals outside Eurostat coverage from configurable reference-country or explicit dwelling/floor assumptions.
-4. Reconstruct residential floor support independently, blend its within-NUTS-3
-   shares equally with GHS-POP, apply country-centred building compactness and
-   NUTS-3 construction-age corrections, and rasterise the result to the same
-   100 m grid.
+4. Load each building batch once and save physical floor area together with
+   population and additive residential compactness support on the 100 m grid.
+5. Aggregate country compactness references from batch summaries, then calculate
+   residential heat weights from the saved rasters and construction-age data.
+6. Merge both public TIFFs in one `merge_heat_rasters` job. Commercial/public
+   floor area has no heat-weight counterpart.
+
+The shared pipeline retains compressed float64 intermediates under
+`resources/automatic/{shapes}/heat_rasters/`. Complete-region support preserves
+normalisation and diagnostics; scoped support preserves building-centroid and
+population-cell-centre clipping. Changing age factors or the population blend
+reuses these intermediates. Changing compactness settings rebuilds support.
 
 The outputs have deliberately different meanings:
 
@@ -62,6 +70,29 @@ Please consult the [interface file](./INTERFACE.yaml) for more information.
 Final TIFFs are saved in `results/{shapes}/rasters/` and diagnostic plots in
 `results/{shapes}/visualiation/`. For `working_EU`, the floor-area result is
 `results/working_EU/rasters/floor_area.tif`.
+
+Import this module and request either public path from the consumer workflow:
+
+```python
+module heat_rasters:
+    snakefile: "path/to/module_heat_rasters/workflow/Snakefile"
+    pathvars:
+        resources="resources",
+        results="results",
+        logs="logs"
+
+use rule * from heat_rasters as heat_rasters_*
+```
+
+For example, run `snakemake results/working_EU/rasters/floor_area.tif --cores 4`
+after providing `resources/user/working_EU/shapes.parquet`. Requesting either
+missing TIFF produces both TIFFs, all three plots, and residential diagnostics.
+The module has no `rule all`. With standard Snakemake output semantics, requesting
+an already-current TIFF does not restore a manually deleted partner; request
+the missing TIFF to rebuild the pair.
+
+The inherited integration tests still reference the template interface and its
+placeholder `rule all`; they have not been migrated to this pipeline.
 
 ## Development
 <!-- Please do not modify this templated section -->

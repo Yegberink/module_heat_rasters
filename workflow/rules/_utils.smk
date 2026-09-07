@@ -135,27 +135,33 @@ def floor_area_batch_inputs(wildcards):
     ]
 
 
-def read_space_heat_weight_batch_plan(wildcards):
-    import json
-
-    path = checkpoints.prepare_space_heat_weight_batches.get(
-        shapes=wildcards.shapes
-    ).output.manifest
-    with open(path) as stream:
-        return json.load(stream)
-
-
-def space_heat_weight_batch_plan_input(wildcards):
-    return checkpoints.prepare_space_heat_weight_batches.get(
-        shapes=wildcards.shapes
-    ).output.manifest
-
-
 def space_heat_weight_batch_inputs(wildcards):
-    plan = read_space_heat_weight_batch_plan(wildcards)
+    plan = read_floor_area_batch_plan(wildcards)
     return [
         str(rules.create_space_heat_weight_batch.output.partials).format(
             shapes=wildcards.shapes, batch=batch
         )
         for batch in plan["batches"]
     ]
+
+
+def selected_microsoft_totals_input(wildcards):
+    outputs = building_source_outputs(wildcards)
+    plan = read_building_plan(wildcards)
+    if any(region["microsoft_quadkeys"] for region in plan["regions"].values()):
+        return str(rules.combine_microsoft.output.totals).format(
+            shapes=wildcards.shapes
+        )
+    return outputs.empty_microsoft_totals
+
+
+def raster_settings():
+    return {
+        key: value
+        for key, value in config["raster"].items()
+        if not key.startswith("plot_")
+    }
+
+
+def intermediate_raster_settings():
+    return {**raster_settings(), "dtype": config["processing"]["intermediate_dtype"]}

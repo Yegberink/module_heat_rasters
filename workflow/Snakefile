@@ -30,8 +30,10 @@ with open(workflow.source_path("internal/settings.yaml"), "r") as f:
 include: "rules/_utils.smk"
 include: "rules/automatic.smk"
 include: "rules/prepare.smk"
+include: "rules/sources.smk"
 include: "rules/floor_area.smk"
 include: "rules/space_heat_weight.smk"
+include: "rules/merge.smk"
 
 
 # Add additional files to be delivered alongside the workflow here.
@@ -45,17 +47,3 @@ workflow.source_path("scripts/_floor_area.py")
 workflow.source_path("scripts/_microsoft.py")
 workflow.source_path("scripts/_regions.py")
 workflow.source_path("scripts/_space_heat_weight.py")
-
-
-rule all:
-    default_target: True
-    output:
-        "INVALID",
-    log:
-        stderr="<logs>/all.stderr",
-    conda:
-        "envs/module.yaml"
-    message:
-        "ERROR: Invalid `rule all:` call"
-    shell:
-        'echo "This workflow must be called as a snakemake module." > {log.stderr}'

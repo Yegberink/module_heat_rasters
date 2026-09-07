@@ -14,6 +14,7 @@ from _eubucco import EUBUCCO_SCHEMA, map_regions, needs_eubucco_metadata
 from _microsoft import (
     MICROSOFT_SCHEMA,
     MICROSOFT_TILE_STATISTICS_SCHEMA,
+    MICROSOFT_TOTALS_SCHEMA,
     intersecting_quadkeys,
 )
 from _schemas import (
@@ -24,6 +25,7 @@ from _schemas import (
     validate_microsoft_index,
     validate_microsoft_partition,
     validate_microsoft_tile_statistics,
+    validate_microsoft_totals,
     validate_nuts3,
 )
 
@@ -140,3 +142,9 @@ validate_eubucco_partition(snakemake.output.empty_eubucco)
 validate_microsoft_partition(snakemake.output.empty_microsoft)
 validate_microsoft_tile_statistics(snakemake.output.empty_microsoft_statistics, [])
 validate_eubucco_plan(snakemake.output.manifest)
+
+pq.write_table(
+    pa.Table.from_batches([], schema=MICROSOFT_TOTALS_SCHEMA),
+    snakemake.output.empty_microsoft_totals,
+)
+validate_microsoft_totals(snakemake.output.empty_microsoft_totals)

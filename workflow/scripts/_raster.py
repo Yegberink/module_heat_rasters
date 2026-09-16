@@ -8,6 +8,31 @@ import numpy as np
 import rasterio
 from shapely.geometry.base import BaseGeometry
 
+FLOOR_AREA_BANDS = ("residential", "commercial", "total")
+
+SPACE_HEAT_WEIGHT_BANDS = ("residential_space_heat_weight",)
+
+SUPPORT_BANDS = {
+    "floor_area": FLOOR_AREA_BANDS[:2],
+    "residential_full": (
+        "residential",
+        "population",
+        "sv_valid_floor_area",
+        "sv_weighted_floor_area",
+    ),
+    "residential_scoped": (
+        "population",
+        "sv_valid_floor_area",
+        "sv_weighted_floor_area",
+    ),
+}
+
+SUPPORT_UNITS = {
+    "floor_area": ("m2/ha", "m2/ha"),
+    "residential_full": ("m2/ha", "people/ha", "m2/ha", "m2/ha * sv_power"),
+    "residential_scoped": ("people/ha", "m2/ha", "m2/ha * sv_power"),
+}
+
 
 def write_raster(path, profile, values, bands, units, tags):
     """Persist aligned support arrays with their explicit band contract."""
@@ -43,3 +68,18 @@ def finish_raster(
         output.set_band_description(band, description)
         output.set_band_unit(band, unit)
     output.update_tags(**tags)
+
+
+def read_region_support(directory):
+    """Load the three cached arrays; use the scoped floor grid for output.
+
+    Complete-region support supplies normalization totals. The two scoped
+    arrays retain the original centroid/cell clipping for the requested shapes.
+    """
+    arrays = []
+    for kind in SUPPORT_BANDS:
+        with rasterio.open(directory / f"{kind}.tif") as raster:
+            arrays.append(raster.read())
+            if kind == "floor_area":
+                profile = raster.profile
+    return *arrays, profile

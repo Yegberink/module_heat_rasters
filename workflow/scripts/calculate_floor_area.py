@@ -4,6 +4,11 @@ Each complete control region and sector uses one source. EUBUCCO floor area is
 preferred; Microsoft footprint area is the fallback weight. The requested
 shape receives only the share represented by building centroids and population
 cell centres inside it.
+
+Sources:
+    Floor-area regionalisation: https://doi.org/10.3390/en12244789
+    Building attributes: https://docs.eubucco.com/v0.2/data-format/schema/
+    Population counts: https://human-settlement.emergency.copernicus.eu/ghs_pop2023.php
 """
 
 import sys
@@ -16,7 +21,7 @@ import pandas as pd
 import pyarrow.dataset as ds
 import rasterio
 import shapely
-from _eubucco import EUBUCCO_COLUMNS, eubucco_batch_filter
+from _eubucco import EUBUCCO_COLUMNS, eubucco_batch_filter, read_plan
 from _floor_area import (
     clipped_grid,
     microsoft_floor_area_support,
@@ -27,20 +32,7 @@ from _floor_area import (
     select_building_sectors,
 )
 from _microsoft import low_coverage_quadkeys
-from _raster import write_raster
-from _schemas import (
-    SUPPORT_BANDS,
-    SUPPORT_UNITS,
-    validate_eubucco_plan,
-    validate_floor_area_batches,
-    validate_floor_area_totals,
-    validate_microsoft_tile_statistics,
-    validate_nuts3,
-    validate_population_raster,
-    validate_region_support,
-    validate_scope,
-    validate_support_batch,
-)
+from _raster import SUPPORT_BANDS, SUPPORT_UNITS, write_raster
 from _space_heat_weight import surface_to_volume_ratio, surface_volume_power
 
 if TYPE_CHECKING:
@@ -49,29 +41,20 @@ if TYPE_CHECKING:
 sys.stderr = open(snakemake.log[0], "w")
 eubucco_settings = snakemake.params.eubucco
 microsoft_settings = snakemake.params.microsoft
-plan = validate_eubucco_plan(snakemake.input.plan)
-batch_plan = validate_floor_area_batches(snakemake.input.batches, plan["regions"])
+plan = read_plan(snakemake.input.plan)
+batch_plan = read_plan(snakemake.input.batches)
 batch_regions = batch_plan["batches"][snakemake.wildcards.batch]
 regions = (
-    validate_nuts3(snakemake.input.nuts3).set_index("region_id").loc[batch_regions]
+    gpd.read_parquet(snakemake.input.nuts3).set_index("region_id").loc[batch_regions]
 )
-scope = validate_scope(snakemake.input.scope).geometry.item()
+scope = gpd.read_parquet(snakemake.input.scope).geometry.item()
 shapely.prepare(scope)
-totals = validate_floor_area_totals(snakemake.input.totals, plan["regions"]).set_index(
-    "region_id"
-)
-planned_quadkeys = {
-    key for region in plan["regions"].values() for key in region["microsoft_quadkeys"]
-}
-statistics = validate_microsoft_tile_statistics(
-    snakemake.input.microsoft_statistics, planned_quadkeys
-)
+totals = pd.read_parquet(snakemake.input.totals).set_index("region_id")
+statistics = pd.read_parquet(snakemake.input.microsoft_statistics)
 low_quadkeys = low_coverage_quadkeys(
     statistics, microsoft_settings["minimum_building_count"]
 )
-validate_population_raster(
-    snakemake.input.population, snakemake.params.population["resolution"]
-)
+
 population_source = rasterio.open(snakemake.input.population)
 
 legacy_ids = sorted(
@@ -107,6 +90,8 @@ output_directory.mkdir(parents=True, exist_ok=True)
 summary_rows = []
 
 for region_id, region in regions.iterrows():
+    # First allocate over the complete census region. Clip only after each
+    # sector total has been assigned to buildings or population cells.
     clipped = region.geometry.intersection(scope)
     region_totals = totals.loc[region_id]
     legacy = plan["regions"][region_id]["eubucco_region_ids"]
@@ -241,12 +226,8 @@ for region_id, region in regions.iterrows():
             "weighted_sv_power": residential.weighted_power.sum(),
         }
     )
-    validate_region_support(
-        output_directory / region_id,
-        snakemake.params.raster,
-        pd.Series(summary_rows[-1], name=region_id),
-    )
+
 
 pd.DataFrame(summary_rows).to_parquet(output_directory / "summary.parquet", index=False)
-validate_support_batch(output_directory, batch_regions)
+
 population_source.close()

@@ -87,7 +87,7 @@ def selected_eubucco_input(wildcards):
         and "eubucco" in {region["residential_source"], region["commercial_source"]}
         for region in plan["regions"].values()
     ):
-        return str(rules.combine_eubucco.output.table).format(shapes=wildcards.shapes)
+        return str(rules.process_eubucco.output.table).format(shapes=wildcards.shapes)
     return outputs.empty_eubucco
 
 
@@ -95,7 +95,7 @@ def selected_microsoft_input(wildcards):
     outputs = building_source_outputs(wildcards)
     plan = read_building_plan(wildcards)
     if any(region["microsoft_quadkeys"] for region in plan["regions"].values()):
-        return str(rules.combine_microsoft.output.table).format(shapes=wildcards.shapes)
+        return str(rules.process_microsoft.output.table).format(shapes=wildcards.shapes)
     return outputs.empty_microsoft
 
 
@@ -149,7 +149,7 @@ def selected_microsoft_totals_input(wildcards):
     outputs = building_source_outputs(wildcards)
     plan = read_building_plan(wildcards)
     if any(region["microsoft_quadkeys"] for region in plan["regions"].values()):
-        return str(rules.combine_microsoft.output.totals).format(
+        return str(rules.process_microsoft.output.totals).format(
             shapes=wildcards.shapes
         )
     return outputs.empty_microsoft_totals

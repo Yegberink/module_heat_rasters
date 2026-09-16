@@ -9,43 +9,25 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import pandas as pd
-from _raster import write_raster
-from _schemas import (
-    SPACE_HEAT_WEIGHT_BANDS,
-    validate_eubucco_plan,
-    validate_floor_area_batches,
-    validate_nuts3_building_age,
-    validate_region_support,
-    validate_space_heat_diagnostics,
-    validate_space_heat_weight_raster,
-    validate_support_batch,
-    validate_sv_statistics,
-)
+from _raster import SPACE_HEAT_WEIGHT_BANDS, read_region_support, write_raster
 from _space_heat_weight import weight_from_support
 
 if TYPE_CHECKING:
     snakemake: Any
 
 sys.stderr = open(snakemake.log[0], "w")
-plan = validate_eubucco_plan(snakemake.input.plan)
-batches = validate_floor_area_batches(snakemake.input.batches, plan["regions"])
-region_ids = batches["batches"][snakemake.wildcards.batch]
-summary = validate_support_batch(snakemake.input.support, region_ids).set_index(
+summary = pd.read_parquet(Path(snakemake.input.support) / "summary.parquet").set_index(
     "region_id"
 )
-age = validate_nuts3_building_age(snakemake.input.age, plan["regions"]).set_index(
-    "region_id"
-)
-statistics = validate_sv_statistics(snakemake.input.sv_statistics).set_index(
-    "country_id"
-)
+age = pd.read_parquet(snakemake.input.age).set_index("region_id")
+statistics = pd.read_parquet(snakemake.input.sv_statistics).set_index("country_id")
 output_directory = Path(snakemake.output.partials)
 output_directory.mkdir(parents=True, exist_ok=True)
 diagnostics = []
 
 for region_id, row in summary.iterrows():
-    floor, full, scoped, profile = validate_region_support(
-        Path(snakemake.input.support) / region_id, snakemake.params.intermediate, row
+    floor, full, scoped, profile = read_region_support(
+        Path(snakemake.input.support) / region_id
     )
     age_row = age.loc[region_id]
     arguments = dict(
@@ -55,6 +37,8 @@ for region_id, row in summary.iterrows():
         share=snakemake.params.population_share,
         age=age_row.age_factor,
     )
+    # Normalize on the whole region, then evaluate the same formula on the
+    # clipped arrays; clipping must not redistribute the outside share.
     full_weights = weight_from_support(*full, **arguments)
     weights = weight_from_support(floor[0], *scoped, **arguments)
     raster_path = output_directory / f"{region_id}.tif"
@@ -70,7 +54,7 @@ for region_id, row in summary.iterrows():
             "population_share": snakemake.params.population_share,
         },
     )
-    validate_space_heat_weight_raster(raster_path, snakemake.params.raster)
+
     diagnostics.append(
         {
             "country_id": row.country_id,
@@ -91,4 +75,3 @@ for region_id, row in summary.iterrows():
 
 path = output_directory / "diagnostics.parquet"
 pd.DataFrame(diagnostics).to_parquet(path, index=False)
-validate_space_heat_diagnostics(path, region_ids)

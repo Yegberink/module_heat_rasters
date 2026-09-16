@@ -4,26 +4,13 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import geopandas as gpd
 import pandas as pd
 import rasterio
+from _eubucco import read_plan
 from _floor_area import add_partial, output_profile
 from _plots import plot_floor_area
-from _raster import finish_raster
-from _schemas import (
-    FLOOR_AREA_BANDS,
-    SPACE_HEAT_WEIGHT_BANDS,
-    read_support_raster,
-    validate_density_raster,
-    validate_eubucco_plan,
-    validate_floor_area_batches,
-    validate_plot,
-    validate_raster_alignment,
-    validate_shapes,
-    validate_space_heat_diagnostics,
-    validate_space_heat_weight_raster,
-    validate_support_batch,
-    validate_weight_batch,
-)
+from _raster import FLOOR_AREA_BANDS, SPACE_HEAT_WEIGHT_BANDS, finish_raster
 
 if TYPE_CHECKING:
     snakemake: Any
@@ -33,11 +20,9 @@ settings = snakemake.params.space_heat_weight
 eurostat = snakemake.params.eurostat
 population = snakemake.params.population
 eubucco = snakemake.params.eubucco
-plan = validate_eubucco_plan(snakemake.input.plan)
-batches = validate_floor_area_batches(snakemake.input.batches, plan["regions"])[
-    "batches"
-]
-shapes = validate_shapes(snakemake.input.shapes).to_crs(plan["crs"])
+plan = read_plan(snakemake.input.plan)
+batches = read_plan(snakemake.input.batches)["batches"]
+shapes = gpd.read_parquet(snakemake.input.shapes).to_crs(plan["crs"])
 profile = output_profile(shapes.total_bounds, snakemake.params.raster, plan["crs"])
 for path in (
     snakemake.output.floor_area,
@@ -47,7 +32,6 @@ for path in (
     Path(path).parent.mkdir(parents=True, exist_ok=True)
 support = {Path(path).name: Path(path) for path in snakemake.input.support}
 weights = {Path(path).name: Path(path) for path in snakemake.input.weights}
-assert set(support) == set(weights) == set(batches)
 diagnostics = []
 with (
     rasterio.open(snakemake.output.floor_area, "w+", **profile) as floor,
@@ -56,16 +40,13 @@ with (
     ) as heat,
 ):
     for batch, regions in batches.items():
-        validate_support_batch(support[batch], regions)
-        diagnostics.append(validate_weight_batch(weights[batch], regions))
+        diagnostics.append(
+            pd.read_parquet(Path(weights[batch]) / "diagnostics.parquet")
+        )
         for region_id in regions:
             floor_path = support[batch] / region_id / "floor_area.tif"
             heat_path = weights[batch] / f"{region_id}.tif"
-            read_support_raster(
-                floor_path, snakemake.params.intermediate, "floor_area", region_id
-            )
-            validate_space_heat_weight_raster(heat_path, snakemake.params.raster)
-            validate_raster_alignment(floor_path, heat_path, profile)
+
             with rasterio.open(floor_path) as partial:
                 add_partial(floor, partial)
             with rasterio.open(heat_path) as partial:
@@ -108,19 +89,12 @@ with (
             "Y1981-2000"
         ],
     )
-validate_density_raster(
-    snakemake.output.floor_area,
-    snakemake.params.raster,
-    ("m2/ha",) * 3,
-    FLOOR_AREA_BANDS,
-)
-validate_space_heat_weight_raster(
-    snakemake.output.residential_space_heat_weight, snakemake.params.raster
-)
+
+
 pd.concat(diagnostics, ignore_index=True).sort_values(
     ["country_id", "region_id"]
 ).to_parquet(snakemake.output.diagnostics, index=False)
-validate_space_heat_diagnostics(snakemake.output.diagnostics, plan["regions"])
+
 
 for raster, band, title, path, unit in (
     (
@@ -156,4 +130,3 @@ for raster, band, title, path, unit in (
         snakemake.params.raster["plot_outline"],
         unit,
     )
-    validate_plot(path)

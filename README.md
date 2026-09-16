@@ -39,6 +39,24 @@ normalisation and diagnostics; scoped support preserves building-centroid and
 population-cell-centre clipping. Changing age factors or the population blend
 reuses these intermediates. Changing compactness settings rebuilds support.
 
+Workflow code is grouped by processing stage:
+
+- `download.py` downloads sources and validates them once using `_schemas.py`.
+  User shapes and EUBUCCO metadata are checked when first ingested by `prepare.py`.
+  Downstream jobs trust generated files; they do not rescan them for validation.
+- `prepare.py` contains separately scheduled functions for shapes, regions,
+  source planning, batch planning, floor-area totals, age factors and compactness
+  references. Sharing a script does not serialize these jobs.
+- `process_eubucco.py` and `process_microsoft.py` each convert and combine their
+  source in one job, using temporary partitions for bounded memory.
+- `calculate_floor_area.py` and `weighted_floor_area.py` run per balanced batch.
+  Downloads and regional batches retain their independent parallel jobs.
+- `sources.smk` defines acquisition and source preparation; `floor_area.smk`
+  includes the final merge; `space_heat_weight.smk` defines weighting.
+
+Configuration validation and mathematical preconditions (for example, a
+positive denominator when scaling a nonzero total) remain in place.
+
 The outputs have deliberately different meanings:
 
 - `floor_area.tif` contains reconstructed physical residential and

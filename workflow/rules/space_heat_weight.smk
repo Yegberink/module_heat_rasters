@@ -7,11 +7,13 @@ rule download_eurostat_building_age:
     log:
         "<logs>/download_eurostat_building_age.log",
     conda:
-        "../envs/download.yaml"
+        "../envs/eubucco-download.yaml"
     params:
+        kind="building_age",
+        year=config["eurostat"]["reference_year"],
         url=internal["resources"]["eurostat_building_age"],
-    shell:
-        'curl -fL --retry 3 --create-dirs -o {output.table} "{params.url}" 2> {log}'
+    script:
+        "../scripts/download.py"
 
 
 rule prepare_nuts3_building_age:
@@ -26,15 +28,15 @@ rule prepare_nuts3_building_age:
     conda:
         "../envs/module.yaml"
     params:
+        step="nuts3_building_age",
+        year=config["eurostat"]["reference_year"],
         settings=config["space_heat_weight"]["age"],
     script:
-        "../scripts/prepare_nuts3_building_age.py"
+        "../scripts/prepare.py"
 
 
 rule prepare_space_heat_sv_statistics:
     input:
-        plan=building_plan_input,
-        batches=floor_area_batch_plan_input,
         support=floor_area_batch_inputs,
     output:
         table="<resources>/automatic/{shapes}/heat_rasters/sv_statistics.parquet",
@@ -42,14 +44,14 @@ rule prepare_space_heat_sv_statistics:
         "<logs>/{shapes}/prepare_space_heat_sv_statistics.log",
     conda:
         "../envs/module.yaml"
+    params:
+        step="space_heat_sv_statistics",
     script:
-        "../scripts/prepare_space_heat_sv_statistics.py"
+        "../scripts/prepare.py"
 
 
 rule create_space_heat_weight_batch:
     input:
-        plan=building_plan_input,
-        batches=floor_area_batch_plan_input,
         support=rules.create_floor_area_batch.output.partials,
         age=rules.prepare_nuts3_building_age.output.table,
         sv_statistics=rules.prepare_space_heat_sv_statistics.output.table,
@@ -65,7 +67,6 @@ rule create_space_heat_weight_batch:
         mem_mb=4096,
     params:
         population_share=config["space_heat_weight"]["population"]["share"],
-        intermediate=intermediate_raster_settings(),
         raster=raster_settings(),
     script:
-        "../scripts/create_nuts3_space_heat_weight.py"
+        "../scripts/weighted_floor_area.py"

@@ -5,7 +5,9 @@ multiplying by independently centred compactness and construction-age factors.
 
 The equivalent-square method supports lightweight EUBUCCO, while full EUBUCCO
 provides observed footprint perimeter. Hotmaps elasticities and age multipliers
-follow Müller et al. (2019).
+follow Müller et al. (2019); the exact values used are configured assumptions.
+
+Source: https://doi.org/10.3390/en12244789
 """
 
 import numpy as np

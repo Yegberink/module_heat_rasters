@@ -1,4 +1,91 @@
-"""Acquire and prepare shared building and population sources."""
+"""Acquire validated sources and prepare geography and building support."""
+
+
+rule download_nuts3:
+    output:
+        geojson="<resources>/automatic/gisco/nuts3.geojson",
+    log:
+        "<logs>/download_nuts3.log",
+    conda:
+        "../envs/eubucco-download.yaml"
+    params:
+        kind="nuts3",
+        url=internal["resources"]["automatic"]["nuts3"],
+    script:
+        "../scripts/download.py"
+
+
+rule download_eurostat_floor_area:
+    output:
+        table="<resources>/automatic/eurostat/cens_21dwbnr_r3.tsv.gz",
+    log:
+        "<logs>/download_eurostat_floor_area.log",
+    conda:
+        "../envs/eubucco-download.yaml"
+    params:
+        kind="floor_area",
+        year=config["eurostat"]["reference_year"],
+        url=internal["resources"]["automatic"]["eurostat_floor_area"],
+    script:
+        "../scripts/download.py"
+
+
+rule download_ghsl_population:
+    output:
+        archive=f"<resources>/automatic/ghsl/pop_{config['population_ghsl']['epoch']}_100.zip",
+    log:
+        "<logs>/download_ghsl_population.log",
+    conda:
+        "../envs/eubucco-download.yaml"
+    params:
+        kind="population",
+        resolution=config["population_ghsl"]["resolution"],
+        member=internal["resources"]["automatic"]["ghsl_stem"].format(
+            epoch=config["population_ghsl"]["epoch"],
+            resolution=config["population_ghsl"]["resolution"],
+        )
+        + "_V1_0.tif",
+        url=internal["resources"]["automatic"]["ghsl_population"].format(
+            stem=internal["resources"]["automatic"]["ghsl_stem"].format(
+                epoch=config["population_ghsl"]["epoch"],
+                resolution=config["population_ghsl"]["resolution"],
+            )
+        ),
+    script:
+        "../scripts/download.py"
+
+
+rule prepare_shapes:
+    input:
+        shapes="<shapes>",
+    output:
+        shapes="<resources>/automatic/{shapes}/land_shapes.parquet",
+        scope="<resources>/automatic/{shapes}/scope_equal_area.parquet",
+    log:
+        "<logs>/{shapes}/prepare_shapes.log",
+    conda:
+        "../envs/module.yaml"
+    params:
+        step="shapes",
+    script:
+        "../scripts/prepare.py"
+
+
+rule prepare_nuts3:
+    input:
+        shapes=rules.prepare_shapes.output.shapes,
+        nuts3=rules.download_nuts3.output.geojson,
+    output:
+        regions="<resources>/automatic/{shapes}/nuts3.parquet",
+    log:
+        "<logs>/{shapes}/prepare_nuts3.log",
+    conda:
+        "../envs/eubucco-download.yaml"
+    params:
+        step="nuts3",
+        country_codes=internal["country_codes"],
+    script:
+        "../scripts/prepare.py"
 
 
 checkpoint prepare_building_sources:
@@ -18,13 +105,14 @@ checkpoint prepare_building_sources:
     conda:
         "../envs/eubucco-download.yaml"
     params:
+        step="building_sources",
         sources=internal["resources"]["automatic"],
         eubucco=config["buildings_eubucco"],
         eubucco_countries=internal["resources"]["eubucco_countries"],
         microsoft=config["buildings_microsoft"],
         proxies=config["data_proxies"],
     script:
-        "../scripts/prepare_building_sources.py"
+        "../scripts/prepare.py"
 
 
 rule download_eubucco:
@@ -37,9 +125,11 @@ rule download_eubucco:
     conda:
         "../envs/eubucco-download.yaml"
     params:
+        kind="eubucco",
+        source=config["buildings_eubucco"]["source"],
         url=eubucco_download_url,
     script:
-        "../scripts/download_eubucco.py"
+        "../scripts/download.py"
 
 
 rule process_eubucco:
@@ -48,9 +138,7 @@ rule process_eubucco:
         regions=rules.prepare_nuts3.output.regions,
         downloads=eubucco_download_inputs,
     output:
-        partitions=directory(
-            f"<resources>/automatic/{{shapes}}/eubucco/v{config['buildings_eubucco']['version']}/{config['buildings_eubucco']['source']}/processed"
-        ),
+        table=f"<resources>/automatic/{{shapes}}/eubucco/v{config['buildings_eubucco']['version']}/{config['buildings_eubucco']['source']}/buildings.parquet",
     log:
         f"<logs>/{{shapes}}/eubucco/v{config['buildings_eubucco']['version']}/{config['buildings_eubucco']['source']}/process.log",
     conda:
@@ -59,22 +147,6 @@ rule process_eubucco:
         mem_mb=4096,
     script:
         "../scripts/process_eubucco.py"
-
-
-rule combine_eubucco:
-    input:
-        plan=building_plan_input,
-        partitions=rules.process_eubucco.output.partitions,
-    output:
-        table=f"<resources>/automatic/{{shapes}}/eubucco/v{config['buildings_eubucco']['version']}/{config['buildings_eubucco']['source']}/buildings.parquet",
-    log:
-        f"<logs>/{{shapes}}/eubucco/v{config['buildings_eubucco']['version']}/{config['buildings_eubucco']['source']}/combine.log",
-    conda:
-        "../envs/module.yaml"
-    resources:
-        mem_mb=4096,
-    script:
-        "../scripts/combine_eubucco.py"
 
 
 rule download_microsoft_index:
@@ -87,11 +159,12 @@ rule download_microsoft_index:
     conda:
         "../envs/eubucco-download.yaml"
     params:
+        kind="microsoft_index",
         url=internal["resources"]["automatic"]["microsoft_index"].format(
             release=config["buildings_microsoft"]["release"]
         ),
-    shell:
-        'test -e {output.table} || curl -fL --retry 3 --create-dirs -o {output.table} "{params.url}" 2> {log}'
+    script:
+        "../scripts/download.py"
 
 
 rule download_microsoft:
@@ -108,8 +181,10 @@ rule download_microsoft:
         part="[0-9]{5}",
     conda:
         "../envs/eubucco-download.yaml"
+    params:
+        kind="microsoft",
     script:
-        "../scripts/download_microsoft.py"
+        "../scripts/download.py"
 
 
 rule process_microsoft:
@@ -118,7 +193,8 @@ rule process_microsoft:
         regions=rules.prepare_nuts3.output.regions,
         downloads=microsoft_download_inputs,
     output:
-        partitions=directory("<resources>/automatic/{shapes}/microsoft/processed"),
+        table="<resources>/automatic/{shapes}/microsoft/buildings.parquet",
+        totals="<resources>/automatic/{shapes}/microsoft/footprint_totals.parquet",
         statistics="<resources>/automatic/{shapes}/microsoft/tile_statistics.parquet",
     log:
         "<logs>/{shapes}/microsoft/process.log",
@@ -128,20 +204,6 @@ rule process_microsoft:
         mem_mb=4096,
     script:
         "../scripts/process_microsoft.py"
-
-
-rule combine_microsoft:
-    input:
-        partitions=rules.process_microsoft.output.partitions,
-    output:
-        table="<resources>/automatic/{shapes}/microsoft/buildings.parquet",
-        totals="<resources>/automatic/{shapes}/microsoft/footprint_totals.parquet",
-    log:
-        "<logs>/{shapes}/microsoft/combine.log",
-    conda:
-        "../envs/module.yaml"
-    script:
-        "../scripts/combine_microsoft.py"
 
 
 rule extract_ghsl_population:

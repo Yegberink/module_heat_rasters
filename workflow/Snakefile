@@ -28,12 +28,9 @@ with open(workflow.source_path("internal/settings.yaml"), "r") as f:
 
 # Add all your includes here.
 include: "rules/_utils.smk"
-include: "rules/automatic.smk"
-include: "rules/prepare.smk"
 include: "rules/sources.smk"
 include: "rules/floor_area.smk"
 include: "rules/space_heat_weight.smk"
-include: "rules/merge.smk"
 
 
 # Add additional files to be delivered alongside the workflow here.

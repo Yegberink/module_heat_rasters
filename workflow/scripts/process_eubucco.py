@@ -12,23 +12,32 @@ Sources:
 
 import sys
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any
 
+import duckdb
+import geopandas as gpd
 import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.parquet as pq
-from _eubucco import canonical_from_full, canonical_from_lightweight, read_plan
-from _schemas import validate_eubucco_partition, validate_eubucco_source, validate_nuts3
+from _eubucco import (
+    EUBUCCO_COLUMNS,
+    EUBUCCO_SCHEMA,
+    canonical_from_full,
+    canonical_from_lightweight,
+    read_plan,
+)
 from pyproj import Transformer
 
 if TYPE_CHECKING:
     snakemake: Any
 
 sys.stderr = open(snakemake.log[0], "w")
+Path(snakemake.output.table).parent.mkdir(parents=True, exist_ok=True)
+temporary = TemporaryDirectory(prefix="heat_buildings_")
 plan = read_plan(snakemake.input.plan)
-regions = validate_nuts3(snakemake.input.regions)
-output = Path(snakemake.output.partitions)
-output.mkdir(parents=True, exist_ok=True)
+regions = gpd.read_parquet(snakemake.input.regions)
+output = Path(temporary.name)
 
 # Limit the Europe-wide table to legacy regions intersecting the requested case.
 region_ids = sorted(
@@ -36,16 +45,22 @@ region_ids = sorted(
         region
         for mapping in plan["regions"].values()
         for region in mapping["eubucco_region_ids"]
-        if "eubucco"
-        in {mapping["residential_source"], mapping["commercial_source"]}
+        if "eubucco" in {mapping["residential_source"], mapping["commercial_source"]}
     }
 )
 selected = pa.array(region_ids)
 if plan["eubucco_source"] == "lightweight":
     sources = [Path(source) for source in snakemake.input.downloads]
     columns = [
-        "id", "region_id", "type", "subtype", "floors", "footprint_area",
-        "height", "lon", "lat",
+        "id",
+        "region_id",
+        "type",
+        "subtype",
+        "floors",
+        "footprint_area",
+        "height",
+        "lon",
+        "lat",
     ]
     transformer = Transformer.from_crs(4326, regions.crs, always_xy=True)
     convert = canonical_from_lightweight
@@ -56,7 +71,6 @@ else:
     convert = canonical_from_full
 
 for source in sources:
-    validate_eubucco_source(source, plan["eubucco_source"])
     for index, batch in enumerate(
         pq.ParquetFile(source).iter_batches(batch_size=250_000, columns=columns)
     ):
@@ -69,5 +83,29 @@ for source in sources:
             compression="zstd",
             row_group_size=100_000,
         )
-for partition in output.glob("*.parquet"):
-    validate_eubucco_partition(partition, plan["eubucco_source"])
+
+
+# External sorting bounds memory while producing a reusable regional table.
+# Sort partitions deterministically before exposing the regional building table.
+partitions = sorted(output.glob("*.parquet"))
+if partitions:
+    # DuckDB performs the external sort without loading all buildings into memory.
+    columns = ", ".join(EUBUCCO_COLUMNS)
+    source = output / "*.parquet"
+    connection = duckdb.connect()
+    connection.execute("SET threads=1")
+    connection.execute(
+        f"""
+        COPY (SELECT {columns} FROM read_parquet('{source}') ORDER BY region_id, id)
+        TO '{snakemake.output.table}'
+        (FORMAT PARQUET, COMPRESSION ZSTD, ROW_GROUP_SIZE 100000)
+        """
+    )
+else:
+    # Preserve the canonical schema when the requested area contains no buildings.
+    pq.write_table(
+        pa.Table.from_batches([], schema=EUBUCCO_SCHEMA), snakemake.output.table
+    )
+
+
+temporary.cleanup()

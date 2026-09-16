@@ -8,6 +8,8 @@ processing:
 buildings_microsoft:
   release: "2026-08-13"
   # Raw features per level-nine tile; zero disables sparse-tile fallback.
+  # Current value is based on two tiles that clearly show wrong buildings. 
+  # If other tiles are found, this value could be increased.
   minimum_building_count: 2000
 
 # EUBUCCO building-stock settings.

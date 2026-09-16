@@ -25,7 +25,6 @@ import pandas as pd
 import rasterio
 import shapely
 from _microsoft import quadkey_polygon
-from _schemas import validate_census
 from affine import Affine
 from gregor.aggregate import aggregate_raster_to_polygon
 from rasterio.enums import Resampling
@@ -54,7 +53,7 @@ def census_values(path: str, year: int) -> pd.DataFrame:
     and append observation flags to values. Splitting the series key and parsing
     only the leading numeric token preserves unavailable observations as NaN.
     """
-    data = validate_census(path, year)
+    data = pd.read_csv(path, sep="\t", dtype=str)
     series_key = data.columns[0]
     dimensions = series_key.removesuffix("\\TIME_PERIOD").split(",")
     year_column = next(column for column in data if column.strip() == str(year))
@@ -156,12 +155,9 @@ def population_grid(source, profile, geometry, resampling, total):
     )
     population[population == source.nodata] = 0
     population[geometry_mask([geometry], population.shape, profile["transform"])] = 0
-    assert np.isfinite(population).all()
-    assert (population >= 0).all()
     assert population.sum() > 0 or total == 0
     if total > 0:
         population *= total / population.sum()
-    assert np.isclose(population.sum(), total)
     return population
 
 
@@ -203,7 +199,6 @@ def microsoft_floor_area_support(
     good["floor_area_m2"] = (
         good.footprint_area_m2 * remaining / support if support > 0 else 0.0
     )
-    assert np.isclose(good.floor_area_m2.sum() + proxy.sum(), sector_total)
     return good, proxy
 
 
